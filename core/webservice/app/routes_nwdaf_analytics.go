@@ -219,6 +219,40 @@ func (s *Server) registerNWDAFAnalyticsRoutes() {
 			"recent": list})
 	})
 
+	// ── Raw data-point export (TS 23.288 §6.2 collection history) ──
+	r.Get("/api/nwdaf/export", func(w http.ResponseWriter, rq *http.Request) {
+		id := rq.URL.Query().Get("analytics_id")
+		if id != "" && !analytics.ValidAnalyticsIDs[id] {
+			jsonError(w, "unknown analytics_id", http.StatusBadRequest)
+			return
+		}
+		limit := 1000
+		if v := rq.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		since := 0.0
+		if v := rq.URL.Query().Get("since_unix"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+				since = f
+			}
+		}
+		imsi := rq.URL.Query().Get("imsi")
+		rows := nwdaf.DefaultService.ExportDataPoints(id, imsi, since, limit)
+		if rows == nil {
+			rows = []map[string]any{}
+		}
+		jsonReply(w, map[string]any{
+			"ok":           true,
+			"analytics_id": id,
+			"imsi":         imsi,
+			"since_unix":   since,
+			"limit":        limit,
+			"rows":         rows,
+		})
+	})
+
 	// ── Service status ────────────────────────────────────────────
 	r.Get("/api/nwdaf/status", func(w http.ResponseWriter, _ *http.Request) {
 		st := nwdaf.DefaultService.Status()

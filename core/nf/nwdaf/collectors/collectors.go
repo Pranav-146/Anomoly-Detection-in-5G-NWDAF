@@ -70,7 +70,7 @@ func CollectAMFData() []analytics.DataPoint {
 		})
 	}()
 
-	// PM counters snapshot -- placeholder
+	// PM counters snapshot -- placeholder for NF load analytics.
 	func() {
 		defer func() { recover() }()
 		data, _ := json.Marshal(map[string]any{
@@ -79,6 +79,26 @@ func CollectAMFData() []analytics.DataPoint {
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "AMF",
 			AnalyticsID: analytics.AnalyticsNFLoad,
+			DataJSON:    string(data),
+			CollectedAt: now,
+		})
+	}()
+
+	// Authentication counters for ABNORMAL_BEHAVIOUR analytics. These
+	// zeroes keep the end-to-end data path alive until AMF auth-event
+	// counters are wired from the live GMM/AUSF path or pushed by tests.
+	func() {
+		defer func() { recover() }()
+		data, _ := json.Marshal(map[string]any{
+			"pm_counters": map[string]any{
+				"AUTH.Att":     0,
+				"AUTH.Fail":    0,
+				"AUTH.FailMAC": 0,
+			},
+		})
+		points = append(points, analytics.DataPoint{
+			SourceNF:    "AMF",
+			AnalyticsID: analytics.AnalyticsAbnormalBehaviour,
 			DataJSON:    string(data),
 			CollectedAt: now,
 		})

@@ -53,10 +53,10 @@ func (s *Service) IngestDataPoint(dp analytics.DataPoint) (int64, error) {
 	}
 	res, err := db.Exec(`INSERT INTO nwdaf_data_points
 		(source_nf, analytics_id, imsi, dnn, sst, data_json, collected_at)
-		VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		dp.SourceNF, dp.AnalyticsID,
 		nilIfEmpty(dp.IMSI), nilIfEmpty(dp.DNN), nilIfEmpty(""),
-		dp.DataJSON)
+		dp.DataJSON, int64(dp.CollectedAt))
 	if err != nil {
 		return 0, err
 	}
@@ -67,6 +67,57 @@ func (s *Service) IngestDataPoint(dp analytics.DataPoint) (int64, error) {
 	s.dataCache[dp.AnalyticsID] = append(s.dataCache[dp.AnalyticsID], dp)
 	s.mu.Unlock()
 	return id, nil
+}
+
+// ExportDataPoints returns raw collected NWDAF DataPoints for dataset
+// generation and offline replay. Filters are intentionally simple:
+// Analytics ID, optional IMSI, optional lower timestamp bound, and a
+// defensive LIMIT.
+func (s *Service) ExportDataPoints(analyticsID, imsi string, sinceUnix float64, limit int) []map[string]any {
+	if limit <= 0 {
+		limit = 1000
+	}
+	if limit > 10000 {
+		limit = 10000
+	}
+	db, err := engine.Open()
+	if err != nil {
+		return nil
+	}
+
+	q := "SELECT * FROM nwdaf_data_points WHERE 1=1"
+	args := []any{}
+	if analyticsID != "" {
+		q += " AND analytics_id=?"
+		args = append(args, analyticsID)
+	}
+	if imsi != "" {
+		q += " AND imsi=?"
+		args = append(args, imsi)
+	}
+	if sinceUnix > 0 {
+		q += " AND collected_at >= datetime(?, 'unixepoch')"
+		args = append(args, int64(sinceUnix))
+	}
+	q += " ORDER BY collected_at DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	results, _ := scanAllRows(rows)
+	for i, r := range results {
+		if dj, ok := r["data_json"].(string); ok && dj != "" {
+			var parsed map[string]any
+			if json.Unmarshal([]byte(dj), &parsed) == nil {
+				results[i]["data_json"] = parsed
+			}
+		}
+	}
+	return results
 }
 
 // GetSubscription returns one subscription row by sub_id, or nil if
