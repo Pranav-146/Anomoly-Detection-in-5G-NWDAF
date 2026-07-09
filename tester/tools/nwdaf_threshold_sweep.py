@@ -23,6 +23,11 @@ kept separately so it cannot be used as a ground-truth label later.
 
 The CSV is suitable for later comparison between NWDAF's verdict and a
 customer-side detector (Isolation Forest etc.).
+
+Scope note: this generator only varies authentication failure ratio via
+`AUTH.Att`/`AUTH.Fail`; `AUTH.FailMAC` remains 0 and no session counters are
+introduced. That means Phase 2 can only evaluate the auth-failure-ratio
+axis, not a broader detector feature set.
 """
 
 from __future__ import annotations
@@ -84,7 +89,14 @@ def post_datapoint(base_url: str, imsi: str, attempts: int, failures: int, colle
     return None
 
 
-def run_sweep(base_url: str, attempts: int, ratios: list[float], repeats: int, window_sec: int, windows_per_sequence: int = 5) -> list[dict]:
+def build_benign_ratios(count: int) -> list[float]:
+    if count <= 1:
+        return [0.0]
+    step = 0.03 / max(count - 1, 1)
+    return [round(i * step, 4) for i in range(count)]
+
+
+def run_sweep(base_url: str, attempts: int, ratios: list[float], repeats: int, window_sec: int, windows_per_sequence: int = 5, benign_count: int = 4) -> list[dict]:
     rows: list[dict] = []
     run_id = int(time.time())
 
@@ -93,7 +105,7 @@ def run_sweep(base_url: str, attempts: int, ratios: list[float], repeats: int, w
         for ratio_idx, ratio in enumerate(ratios):
             failures = int(round(attempts * ratio))
             actual_ratio = failures / attempts if attempts else 0.0
-            imsi = f"001010{run_id % 1000000:06d}{repeat % 10}{ratio_idx % 10}"
+            imsi = f"001010{run_id % 1000000:06d}{repeat:03d}{ratio_idx:03d}"
             now = time.time()
             meta = {"name": "nwdaf_threshold_sweep", "repeat": repeat, "target_ratio": ratio, "attack_type": "naive_attacker", "window_sec": window_sec}
             post_datapoint(base_url, imsi, attempts, failures, now, meta)
@@ -124,7 +136,7 @@ def run_sweep(base_url: str, attempts: int, ratios: list[float], repeats: int, w
         #    fixed 30s threshold, but aggregate volume is high.
         paced_ratios = [r for r in ratios if 0.28 <= r <= 0.31]
         for pidx, ratio in enumerate(paced_ratios):
-            imsi = f"001010{(run_id+1) % 1000000:06d}{repeat % 10}{pidx % 10}"
+            imsi = f"001010{(run_id+1) % 1000000:06d}{repeat:03d}{pidx:03d}"
             # start so collected_at values are contiguous windows
             start = time.time()
             # Post all windows without querying per-window (to avoid time-travel
@@ -171,13 +183,13 @@ def run_sweep(base_url: str, attempts: int, ratios: list[float], repeats: int, w
                     r["campaign_alert_types"] = "|".join(str(a.get("type", "")) for a in campaign_alerts)
 
         # 3) Benign baseline: low ratios with small random noise
-        benign_ratios = (0.00, 0.01, 0.02, 0.03)
+        benign_ratios = build_benign_ratios(benign_count)
         for bidx, ratio in enumerate(benign_ratios):
-            noise = random.uniform(-0.002, 0.002)
-            r = max(0.0, ratio + noise)
+            noise = random.uniform(-0.0015, 0.0015)
+            r = max(0.0, min(0.03, ratio + noise))
             failures = int(round(attempts * r))
             actual_ratio = failures / attempts if attempts else 0.0
-            imsi = f"001010{(run_id+2) % 1000000:06d}{repeat % 10}{bidx % 10}"
+            imsi = f"001010{(run_id+2) % 1000000:06d}{repeat:03d}{bidx:03d}"
             now = time.time()
             meta = {"name": "nwdaf_threshold_sweep", "repeat": repeat, "target_ratio": r, "attack_type": "benign", "window_sec": window_sec}
             post_datapoint(base_url, imsi, attempts, failures, now, meta)
@@ -248,10 +260,16 @@ def main() -> int:
         default="experiments/nwdaf_threshold_sweep.csv",
         help="CSV output path, relative to the current working directory unless absolute.",
     )
+    parser.add_argument(
+        "--benign-count",
+        type=int,
+        default=16,
+        help="Number of benign baseline ratios to generate for the dataset.",
+    )
     args = parser.parse_args()
 
     ratios = [float(x.strip()) for x in args.ratios.split(",") if x.strip()]
-    rows = run_sweep(args.base_url, args.attempts, ratios, args.repeat, args.window_sec, args.windows_per_sequence)
+    rows = run_sweep(args.base_url, args.attempts, ratios, args.repeat, args.window_sec, args.windows_per_sequence, args.benign_count)
     out = Path(args.out)
     write_csv(out, rows)
 
