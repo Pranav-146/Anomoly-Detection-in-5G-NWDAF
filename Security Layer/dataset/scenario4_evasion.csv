@@ -1,0 +1,11 @@
+supi,origin,window_index,attempts,failures,timestamp,raw_ratio
+s4_supi,cellZ,0,100,29,0.0,0.29
+s4_supi,cellZ,1,100,29,30.0,0.29
+s4_supi,cellZ,2,100,29,60.0,0.29
+s4_supi,cellZ,3,100,29,90.0,0.29
+s4_supi,cellZ,4,100,29,120.0,0.29
+s4_supi,cellZ,5,100,29,150.0,0.29
+s4_supi,cellZ,6,100,29,180.0,0.29
+s4_supi,cellZ,7,100,29,210.0,0.29
+s4_supi,cellZ,8,100,29,240.0,0.29
+s4_supi,cellZ,9,100,29,270.0,0.29

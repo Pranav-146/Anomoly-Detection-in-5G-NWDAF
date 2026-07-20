@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import urllib.parse
 
-PORT = 5000
+PORT = 6000
 
 class Handler(BaseHTTPRequestHandler):
     def _set_json(self, code=200):

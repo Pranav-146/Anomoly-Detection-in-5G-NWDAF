@@ -9,6 +9,7 @@ Usage:
   python3 -m src.cli reports --list
 """
 
+import os
 import argparse
 import sys
 import time
@@ -29,6 +30,9 @@ def cmd_run(args):
 
     ensure_schema()
     runner = TestRunner()
+    from src.testcases.registry import discover_all
+    for tc in discover_all():
+        runner.register(tc)
 
     # Determine which tests to run
     if args.test:
@@ -41,10 +45,10 @@ def cmd_run(args):
                       if tc.get("suite") == args.suite or args.suite in tc.get("suite", "")]
         if not test_names:
             # Try by test name pattern
-            test_names = [name for name in runner._registry if args.suite in name]
+            test_names = [name for name in runner._tc_id_map if args.suite in name]
         run_type = "suite"
     else:
-        test_names = list(runner._registry.keys())
+        test_names = list(runner._tc_id_map.keys())
         run_type = "regression"
 
     if not test_names:

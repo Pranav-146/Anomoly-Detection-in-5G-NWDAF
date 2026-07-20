@@ -1,0 +1,5 @@
+timestamp,supi,action,detection_source,reason
+180.0,demo-attacker,SESSION_RELEASE,RULE,Tier 1 hard rule triggered
+90.0,demo-attacker,SESSION_RELEASE,IF,Tier 2 anomaly signal triggered
+120.0,demo-attacker,SESSION_RELEASE,IF,Tier 2 anomaly signal triggered
+150.0,demo-attacker,SESSION_RELEASE,IF,Tier 2 anomaly signal triggered

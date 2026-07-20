@@ -1,0 +1,6 @@
+supi,origin,window_index,attempts,failures,timestamp,raw_ratio
+s2_supi,cellZ,0,100,45,0.0,0.45
+s2_supi,cellZ,1,100,45,30.0,0.45
+s2_supi,cellZ,2,100,45,60.0,0.45
+s2_supi,cellZ,3,100,45,90.0,0.45
+s2_supi,cellZ,4,100,45,120.0,0.45

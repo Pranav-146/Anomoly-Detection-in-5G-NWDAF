@@ -1,0 +1,4 @@
+timestamp,supi,action,detection_source,reason
+100.0,imsi-0009,SESSION_RELEASE,RULE,Detection event received; immediate session release applied (baseline insecure policy)
+101.0,imsi-0010,SESSION_RELEASE,IF,Detection event received; immediate session release applied (baseline insecure policy)
+102.0,imsi-0013,SESSION_RELEASE,BOTH,Detection event received; immediate session release applied (baseline insecure policy)

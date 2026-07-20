@@ -1,0 +1,4 @@
+supi,origin,window_index,attempts,failures,timestamp,raw_ratio
+s3_victim_supi,cellZ,0,100,40,0.0,0.4
+s3_victim_supi,cellZ,1,100,40,30.0,0.4
+s3_victim_supi,cellZ,2,100,40,60.0,0.4

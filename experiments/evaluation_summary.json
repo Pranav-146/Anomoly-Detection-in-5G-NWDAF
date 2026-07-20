@@ -1,0 +1,177 @@
+{
+  "dataset_rows": 196,
+  "benign_windows": 120,
+  "naive_attack_windows": 32,
+  "paced_evasion_windows": 32,
+  "model_a": {
+    "selected_contamination": 0.03,
+    "benign_false_positive_rate": 0.05,
+    "naive_attack_detection_rate": 1.0,
+    "paced_evasion_detection_rate": 1.0,
+    "per_imsi_detection_rate": 1.0,
+    "per_imsi_results": [
+      {
+        "imsi": "imsi-attack-naive-01",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-02",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-03",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-04",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-01",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-02",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-03",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-04",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      }
+    ],
+    "sweep": [
+      {
+        "contamination": 0.01,
+        "benign_false_positive_rate": 0.0,
+        "naive_attack_detection_rate": 0.0,
+        "paced_evasion_detection_rate": 0.0
+      },
+      {
+        "contamination": 0.03,
+        "benign_false_positive_rate": 0.05,
+        "naive_attack_detection_rate": 1.0,
+        "paced_evasion_detection_rate": 1.0
+      },
+      {
+        "contamination": 0.05,
+        "benign_false_positive_rate": 0.05,
+        "naive_attack_detection_rate": 1.0,
+        "paced_evasion_detection_rate": 1.0
+      },
+      {
+        "contamination": 0.1,
+        "benign_false_positive_rate": 0.05,
+        "naive_attack_detection_rate": 1.0,
+        "paced_evasion_detection_rate": 1.0
+      }
+    ]
+  },
+  "model_b": {
+    "selected_contamination": 0.1,
+    "benign_false_positive_rate": 0.175,
+    "naive_attack_detection_rate": 1.0,
+    "paced_evasion_detection_rate": 1.0,
+    "per_imsi_detection_rate": 1.0,
+    "per_imsi_results": [
+      {
+        "imsi": "imsi-attack-naive-01",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-02",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-03",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-naive-04",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-01",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-02",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-03",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      },
+      {
+        "imsi": "imsi-attack-paced-04",
+        "flagged_windows": 8,
+        "total_windows": 8,
+        "detection_rate": 1.0
+      }
+    ],
+    "sweep": [
+      {
+        "contamination": 0.01,
+        "benign_false_positive_rate": 0.025,
+        "naive_attack_detection_rate": 0.0,
+        "paced_evasion_detection_rate": 0.0
+      },
+      {
+        "contamination": 0.03,
+        "benign_false_positive_rate": 0.075,
+        "naive_attack_detection_rate": 0.0,
+        "paced_evasion_detection_rate": 0.0
+      },
+      {
+        "contamination": 0.05,
+        "benign_false_positive_rate": 0.075,
+        "naive_attack_detection_rate": 0.0,
+        "paced_evasion_detection_rate": 0.0
+      },
+      {
+        "contamination": 0.1,
+        "benign_false_positive_rate": 0.175,
+        "naive_attack_detection_rate": 1.0,
+        "paced_evasion_detection_rate": 1.0
+      }
+    ]
+  },
+  "model_comparison": {
+    "improvement_in_paced_detection": 0.0,
+    "improvement_in_naive_detection": 0.0,
+    "change_in_benign_fpr": 0.12499999999999999
+  }
+}
