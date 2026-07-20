@@ -1,0 +1,10 @@
+timestamp_unix,repeat,imsi,attack_type,is_attack,auth_attempts,auth_failures,failure_ratio,detected,alert_count,alert_types,window_index,campaign_detected,campaign_alert_count,campaign_alert_types,rolling_mean_ratio,rolling_max_ratio,windows_above_soft_thresh,ratio_slope,prediction,anomaly_score
+1783056007.185,0,101005600704,naive_attacker,True,100,30,0.3,False,0,,,,,,0.3,0.3,1.0,0.0,1,0.11840426155394673
+1783056007.207,0,101005600705,naive_attacker,True,100,31,0.31,False,1,HIGH_FAILURE_RATIO,,,,,0.31,0.31,1.0,0.0,1,0.11840426155394673
+1783056007.241,0,101005600706,naive_attacker,True,100,40,0.4,False,1,HIGH_FAILURE_RATIO,,,,,0.4,0.4,1.0,0.0,1,0.11840426155394673
+1783056007.369,0,101005600802,paced_evasion,True,100,31,0.31,False,0,,0.0,False,0.0,,0.31,0.31,1.0,0.0,1,0.11840426155394673
+1783056037.369,0,101005600802,paced_evasion,True,100,31,0.31,False,0,,1.0,False,0.0,,0.31,0.31,2.0,0.0,1,0.11840426155394673
+1783056067.369,0,101005600802,paced_evasion,True,100,31,0.31,False,0,,2.0,False,0.0,,0.31,0.31,3.0,0.0,1,0.11840426155394673
+1783056097.369,0,101005600802,paced_evasion,True,100,31,0.31,False,0,,3.0,False,0.0,,0.31,0.31,3.0,0.0,1,0.11840426155394673
+1783056127.369,0,101005600802,paced_evasion,True,100,31,0.31,False,0,,4.0,False,0.0,,0.31,0.31,3.0,0.0,1,0.11840426155394673
+1783056007.489,0,101005600901,benign,False,100,1,0.01,False,0,,,,,,0.01,0.01,0.0,0.0,1,0.07202354406639266

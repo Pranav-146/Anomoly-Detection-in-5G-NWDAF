@@ -1,0 +1,102 @@
+{
+  "configuration": {
+    "contamination": 0.05,
+    "n_estimators": 100,
+    "random_state": 42,
+    "rolling_window": 3,
+    "soft_threshold": 0.25,
+    "split": "StratifiedGroupKFold over IMSI; first fold held out"
+  },
+  "rows": {
+    "total": 26,
+    "train": 17,
+    "test": 9,
+    "benign_train": 3
+  },
+  "imsis": {
+    "train": [
+      "101005600700",
+      "101005600701",
+      "101005600702",
+      "101005600703",
+      "101005600800",
+      "101005600801",
+      "101005600900",
+      "101005600902",
+      "101005600903"
+    ],
+    "test": [
+      "101005600704",
+      "101005600705",
+      "101005600706",
+      "101005600802",
+      "101005600901"
+    ]
+  },
+  "models": {
+    "model_a": {
+      "features": [
+        "auth_attempts",
+        "auth_failures",
+        "failure_ratio"
+      ],
+      "test_windows": 9,
+      "benign_false_positive_rate": 0.0,
+      "attack_detection_rate": 0.0,
+      "by_attack_type": [
+        {
+          "attack_type": "benign",
+          "windows": 1,
+          "detected": 0,
+          "detection_rate": 0.0
+        },
+        {
+          "attack_type": "naive_attacker",
+          "windows": 3,
+          "detected": 0,
+          "detection_rate": 0.0
+        },
+        {
+          "attack_type": "paced_evasion",
+          "windows": 5,
+          "detected": 0,
+          "detection_rate": 0.0
+        }
+      ]
+    },
+    "model_b": {
+      "features": [
+        "auth_attempts",
+        "auth_failures",
+        "failure_ratio",
+        "rolling_mean_ratio",
+        "rolling_max_ratio",
+        "windows_above_soft_thresh",
+        "ratio_slope"
+      ],
+      "test_windows": 9,
+      "benign_false_positive_rate": 0.0,
+      "attack_detection_rate": 0.0,
+      "by_attack_type": [
+        {
+          "attack_type": "benign",
+          "windows": 1,
+          "detected": 0,
+          "detection_rate": 0.0
+        },
+        {
+          "attack_type": "naive_attacker",
+          "windows": 3,
+          "detected": 0,
+          "detection_rate": 0.0
+        },
+        {
+          "attack_type": "paced_evasion",
+          "windows": 5,
+          "detected": 0,
+          "detection_rate": 0.0
+        }
+      ]
+    }
+  }
+}
