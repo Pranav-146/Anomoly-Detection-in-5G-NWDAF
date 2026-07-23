@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/mmt/mmt-studio-core/oam/pm"
 )
 
 const datasetFilename = "nwdaf_feature_dataset.csv"
@@ -65,7 +67,7 @@ func ensureDatasetFile() error {
 		return fmt.Errorf("create dataset file: %w", err)
 	}
 	writer := csv.NewWriter(file)
-	header := []string{"AUTH.Att", "AUTH.Fail", "AUTH.FailMAC", "SM.SessAtt", "SM.SessFail"}
+	header := []string{pm.AuthAtt, pm.AuthFail, pm.AuthFailMAC, pm.SMSessAtt, pm.SMSessFail}
 	if err := writer.Write(header); err != nil {
 		file.Close()
 		return fmt.Errorf("write dataset header: %w", err)

@@ -321,8 +321,8 @@ func computeUECommunication(dataPoints []DataPoint) AnalyticsResult {
 	latest := sessionData[len(sessionData)-1]
 	result := map[string]any{
 		"total_active_sessions": latest["total_sessions"],
-		"sessions_by_dnn":      latest["sessions_by_dnn"],
-		"ip_pool_usage":        latest["ip_pool_usage"],
+		"sessions_by_dnn":       latest["sessions_by_dnn"],
+		"ip_pool_usage":         latest["ip_pool_usage"],
 	}
 	return AnalyticsResult{Result: result, Confidence: 0.8}
 }
@@ -419,6 +419,7 @@ func computeThreshold(dataPoints []DataPoint) AnalyticsResult {
 }
 
 func computeML(dataPoints []DataPoint) AnalyticsResult {
+	thresholdResult := computeThreshold(dataPoints)
 	var counters map[string]any
 	for i := len(dataPoints) - 1; i >= 0; i-- {
 		data := parseDataJSON(dataPoints[i])
@@ -429,27 +430,36 @@ func computeML(dataPoints []DataPoint) AnalyticsResult {
 	}
 
 	if counters == nil {
-		return computeThreshold(dataPoints)
+		return thresholdResult
 	}
 
 	features, err := ExtractFeatures(counters)
 	if err != nil {
 		log.Printf("NWDAF ML detector feature extraction failed, falling back to threshold: %v", err)
-		return computeThreshold(dataPoints)
+		return thresholdResult
 	}
 
 	prediction, confidence, err := Predict(features)
 	if err != nil {
 		log.Printf("NWDAF ML detector request failed, falling back to threshold: %v", err)
-		return computeThreshold(dataPoints)
+		return thresholdResult
 	}
 
-	alerts := []map[string]any{}
+	alerts := append([]map[string]any(nil), thresholdAlerts(thresholdResult)...)
 	if prediction {
-		alerts = buildAbnormalAlerts(counters)
+		alerts = append(alerts, map[string]any{
+			"type":     "ML_ANOMALY",
+			"severity": "medium",
+			"detail":   fmt.Sprintf("ML service anomaly score %.6f", confidence),
+		})
 	}
 
 	return buildAbnormalResult(alerts, confidence)
+}
+
+func thresholdAlerts(result AnalyticsResult) []map[string]any {
+	alerts, _ := result.Result["alerts"].([]map[string]any)
+	return alerts
 }
 
 func buildAbnormalAlerts(counters map[string]any) []map[string]any {

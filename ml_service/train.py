@@ -4,9 +4,17 @@ import argparse
 import sys
 from pathlib import Path
 
+# The repository's root token.py shadows the stdlib token module when Python
+# is launched from the repository root. Remove that root from import lookup
+# only for package-mode execution; direct execution from ml_service is unchanged.
+if __package__ and sys.path and Path(sys.path[0]).resolve() == Path.cwd().resolve():
+    sys.path.pop(0)
+
 try:
+    from ml_service.config import FEATURE_NAMES
     from ml_service.predictor import Predictor
-except ImportError:
+except ModuleNotFoundError:  # Support: cd ml_service && python3 train.py.
+    from config import FEATURE_NAMES
     from predictor import Predictor
 
 
@@ -50,9 +58,10 @@ def main() -> int:
         print(f"Training failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Trained Isolation Forest model saved to: {predictor.model_path}")
-    print(f"Dataset used: {predictor.dataset_path}")
+    print(f"Dataset path: {predictor.dataset_path}")
     print(f"Usable training rows: {len(dataset)}")
+    print(f"Feature order: {','.join(FEATURE_NAMES)}")
+    print(f"Model path: {predictor.model_path}")
     return 0
 
 

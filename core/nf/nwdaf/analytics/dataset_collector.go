@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/mmt/mmt-studio-core/oam/pm"
 )
 
 var (
@@ -18,6 +20,9 @@ var (
 // The CSV file is created on first use, the header is written once, and
 // subsequent calls append one row per collection cycle.
 func AppendFeatureVector(features []float64) error {
+	if len(features) != 5 {
+		return fmt.Errorf("expected exactly 5 features, got %d", len(features))
+	}
 	datasetMu.Lock()
 	defer datasetMu.Unlock()
 
@@ -62,7 +67,7 @@ func ensureDatasetFile() error {
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	header := []string{"AUTH.Att", "AUTH.Fail", "AUTH.FailMAC", "SM.SessAtt", "SM.SessFail"}
+	header := []string{pm.AuthAtt, pm.AuthFail, pm.AuthFailMAC, pm.SMSessAtt, pm.SMSessFail}
 	if err := writer.Write(header); err != nil {
 		return err
 	}

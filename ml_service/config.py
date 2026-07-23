@@ -3,7 +3,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-DEFAULT_PORT = int(os.environ.get("ML_SERVICE_PORT", "8000"))
+HOST = os.environ.get("ML_SERVICE_HOST", "0.0.0.0")
+PORT = int(os.environ.get("ML_SERVICE_PORT", "8000"))
+# Compatibility alias for callers using the original name.
+DEFAULT_PORT = PORT
 MODEL_PATH = Path(os.environ.get("ML_MODEL_PATH", ROOT / "model.joblib"))
 
 _dataset_path = os.environ.get("ML_DATASET_PATH")
@@ -21,3 +24,5 @@ FEATURE_NAMES = [
     "SM.SessAtt",
     "SM.SessFail",
 ]
+
+MIN_TRAINING_ROWS = 5
