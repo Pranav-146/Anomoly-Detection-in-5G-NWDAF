@@ -3,11 +3,11 @@
 // Spec anchors:
 //
 //   - TS 23.288 §6.2     Procedures for Data Collection — top-level
-//                         framing for the collection cycle.
+//     framing for the collection cycle.
 //   - TS 23.288 §6.2.2   Data Collection from NFs — each Collect*Data()
-//                         function below realises the §6.2.2 cycle for
-//                         one NF, returning DataPoint slices that the
-//                         analytics engine can later aggregate.
+//     function below realises the §6.2.2 cycle for
+//     one NF, returning DataPoint slices that the
+//     analytics engine can later aggregate.
 //
 // Deferred:
 //
@@ -26,6 +26,7 @@ import (
 
 	"github.com/mmt/mmt-studio-core/nf/nwdaf/analytics"
 	"github.com/mmt/mmt-studio-core/oam/logger"
+	"github.com/mmt/mmt-studio-core/oam/pm"
 )
 
 var log = logger.Get("nwdaf.collectors")
@@ -84,17 +85,20 @@ func CollectAMFData() []analytics.DataPoint {
 		})
 	}()
 
-	// Authentication counters for ABNORMAL_BEHAVIOUR analytics. These
-	// zeroes keep the end-to-end data path alive until AMF auth-event
-	// counters are wired from the live GMM/AUSF path or pushed by tests.
+	// Authentication counters for ABNORMAL_BEHAVIOUR analytics. Use the
+	// live PM counter singleton so the feature extractor and dataset writer
+	// receive real values from the running system.
 	func() {
 		defer func() { recover() }()
+		pmCounters := map[string]any{
+			pm.AuthAtt:     pm.Default.Get(pm.AuthAtt),
+			pm.AuthFail:    pm.Default.Get(pm.AuthFail),
+			pm.AuthFailMAC: pm.Default.Get(pm.AuthFailMAC),
+			pm.SMSessAtt:   pm.Default.Get(pm.SMSessAtt),
+			pm.SMSessFail:  pm.Default.Get(pm.SMSessFail),
+		}
 		data, _ := json.Marshal(map[string]any{
-			"pm_counters": map[string]any{
-				"AUTH.Att":     0,
-				"AUTH.Fail":    0,
-				"AUTH.FailMAC": 0,
-			},
+			"pm_counters": pmCounters,
 		})
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "AMF",
@@ -102,6 +106,30 @@ func CollectAMFData() []analytics.DataPoint {
 			DataJSON:    string(data),
 			CollectedAt: now,
 		})
+	}()
+
+	// Forward extracted PM counter features to the dataset collector.
+	// This is intentionally isolated and does not alter analytics behavior.
+	func() {
+		defer func() { recover() }()
+		if len(points) == 0 {
+			return
+		}
+		for _, point := range points {
+			if point.AnalyticsID != analytics.AnalyticsAbnormalBehaviour {
+				continue
+			}
+			var data map[string]any
+			if err := json.Unmarshal([]byte(point.DataJSON), &data); err != nil {
+				continue
+			}
+			if pmCounters, ok := data["pm_counters"].(map[string]any); ok {
+				features, err := analytics.ExtractFeatures(pmCounters)
+				if err == nil {
+					_ = analytics.AppendFeatureVector(features)
+				}
+			}
+		}
 	}()
 
 	log.Debugf("AMF collector: %d points", len(points))
@@ -179,8 +207,8 @@ func CollectUPFData() []analytics.DataPoint {
 	func() {
 		defer func() { recover() }()
 		data, _ := json.Marshal(map[string]any{
-			"active_sessions":  0,
-			"io_thread_alive":  false,
+			"active_sessions": 0,
+			"io_thread_alive": false,
 		})
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "UPF",

@@ -3,3 +3,8 @@
 {"exception_id": "test-escalation-001", "supi": "imsi-001010123456789", "tier": "escalate", "action": "pdu_sessions_released", "timestamp_unix_ns": 1784528493878646800}
 {"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784528502715187800}
 {"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784698241603708436}
+{"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784699913275610749}
+{"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784700747279835882}
+{"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784702135583174557}
+{"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784703745435545894}
+{"exception_id": "campaign-1", "supi": "imsi-001", "tier": "throttle", "action": "admission_throttle", "timestamp_unix_ns": 1784707779183758652}
