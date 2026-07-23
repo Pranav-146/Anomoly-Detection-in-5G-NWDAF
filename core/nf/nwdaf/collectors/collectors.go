@@ -26,6 +26,7 @@ import (
 
 	"github.com/mmt/mmt-studio-core/nf/nwdaf/analytics"
 	"github.com/mmt/mmt-studio-core/oam/logger"
+	"github.com/mmt/mmt-studio-core/oam/pm"
 )
 
 var log = logger.Get("nwdaf.collectors")
@@ -84,17 +85,20 @@ func CollectAMFData() []analytics.DataPoint {
 		})
 	}()
 
-	// Authentication counters for ABNORMAL_BEHAVIOUR analytics. These
-	// zeroes keep the end-to-end data path alive until AMF auth-event
-	// counters are wired from the live GMM/AUSF path or pushed by tests.
+	// Authentication counters for ABNORMAL_BEHAVIOUR analytics. Use the
+	// live PM counter singleton so the feature extractor and dataset writer
+	// receive real values from the running system.
 	func() {
 		defer func() { recover() }()
+		pmCounters := map[string]any{
+			pm.AuthAtt:     pm.Default.Get(pm.AuthAtt),
+			pm.AuthFail:    pm.Default.Get(pm.AuthFail),
+			pm.AuthFailMAC: pm.Default.Get(pm.AuthFailMAC),
+			pm.SMSessAtt:   pm.Default.Get(pm.SMSessAtt),
+			pm.SMSessFail:  pm.Default.Get(pm.SMSessFail),
+		}
 		data, _ := json.Marshal(map[string]any{
-			"pm_counters": map[string]any{
-				"AUTH.Att":     0,
-				"AUTH.Fail":    0,
-				"AUTH.FailMAC": 0,
-			},
+			"pm_counters": pmCounters,
 		})
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "AMF",

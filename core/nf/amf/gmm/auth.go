@@ -20,61 +20,69 @@
 // ── Spec-compliance gaps (§5.4.1.3.7 Abnormal cases) ─────────────────
 //
 // TODO(spec: TS 24.501 §5.4.1.3.7 a) — Lower layer failure before
-//   AUTH RESPONSE received: the network shall abort the procedure.
-//   We rely on the gNB-disconnect path (NGAP SCTP FSM fires
-//   EvCommLost → cascade) to tear down UE state; the spec-correct
-//   hook is more specific — abort the 5G-AKA procedure and release
-//   the N1 NAS signalling connection.
+//
+//	AUTH RESPONSE received: the network shall abort the procedure.
+//	We rely on the gNB-disconnect path (NGAP SCTP FSM fires
+//	EvCommLost → cascade) to tear down UE state; the spec-correct
+//	hook is more specific — abort the 5G-AKA procedure and release
+//	the N1 NAS signalling connection.
 //
 // TODO(spec: TS 24.501 §5.4.1.3.7 b) — T3560 expiry handling:
-//   on the 5th (final) expiry the network shall abort the 5G-AKA
-//   procedure AND any ongoing 5GMM procedure AND release the N1 NAS
-//   signalling connection. Today FSM TimerSpec.MaxRetransmit=4
-//   gives us 4 retransmits but the "release N1 NAS" step on final
-//   expiry isn't wired; we just drop back to StateDeregistered.
+//
+//	on the 5th (final) expiry the network shall abort the 5G-AKA
+//	procedure AND any ongoing 5GMM procedure AND release the N1 NAS
+//	signalling connection. Today FSM TimerSpec.MaxRetransmit=4
+//	gives us 4 retransmits but the "release N1 NAS" step on final
+//	expiry isn't wired; we just drop back to StateDeregistered.
 //
 // TODO(spec: TS 24.501 §5.4.1.3.7 c, d) — On AUTH FAILURE #20 or
-//   #26, the AMF MAY initiate IDENTIFICATION (§5.4.3) to re-verify
-//   the 5G-GUTI ↔ SUPI mapping before deciding to reject or retry.
-//   Current implementation unconditionally retries — see the
-//   per-cause TODOs in handleAuthenticationFailure below.
+//
+//	#26, the AMF MAY initiate IDENTIFICATION (§5.4.3) to re-verify
+//	the 5G-GUTI ↔ SUPI mapping before deciding to reject or retry.
+//	Current implementation unconditionally retries — see the
+//	per-cause TODOs in handleAuthenticationFailure below.
 //
 // ── Spec-compliance gaps (TS 33.501 — security) ──────────────────────
 //
 // TODO(spec: TS 33.501 §6.1.2) — SUCI vs SUPI choice in
-//   Nausf_UEAuthentication_Authenticate Request: the SEAF shall
-//   include SUPI only when it has a valid 5G-GUTI and is
-//   re-authenticating; otherwise SUCI. Our ausf.GenerateAV takes
-//   ue.IMSI (SUPI) always — we've already de-concealed SUCI upstream
-//   so the AUSF never sees the SUCI. Correct for an in-process AUSF,
-//   but breaks when we split AUSF to N12: the boundary needs to
-//   carry SUCI, not SUPI, on first registration.
+//
+//	Nausf_UEAuthentication_Authenticate Request: the SEAF shall
+//	include SUPI only when it has a valid 5G-GUTI and is
+//	re-authenticating; otherwise SUCI. Our ausf.GenerateAV takes
+//	ue.IMSI (SUPI) always — we've already de-concealed SUCI upstream
+//	so the AUSF never sees the SUCI. Correct for an in-process AUSF,
+//	but breaks when we split AUSF to N12: the boundary needs to
+//	carry SUCI, not SUPI, on first registration.
 //
 // TODO(spec: TS 33.501 §6.1.3.2 step 9) — SEAF-side HRES* check: the
-//   SEAF shall compute HRES* from RES* (Annex A.5) and compare
-//   against HXRES* from the AUSF. We bypass this because the
-//   in-process AUSF returns XRES* directly and we compare RES*==XRES*
-//   (auth.go:226). When AUSF splits over N12 the SEAF must do
-//   SHA-256(RAND||RES*)-truncate comparison per A.5 instead.
+//
+//	SEAF shall compute HRES* from RES* (Annex A.5) and compare
+//	against HXRES* from the AUSF. We bypass this because the
+//	in-process AUSF returns XRES* directly and we compare RES*==XRES*
+//	(auth.go:226). When AUSF splits over N12 the SEAF must do
+//	SHA-256(RAND||RES*)-truncate comparison per A.5 instead.
 //
 // TODO(spec: TS 33.501 §6.1.3.2 final + Annex A.7) — SEAF derives KAMF
-//   from KSEAF, ABBA, SUPI; the AUSF only returns KSEAF. Our AUSF
-//   returns KAMF pre-derived as a convenience. Correct in-process;
-//   move to strict A.7 KDF in the SEAF once AUSF is a distinct NF.
+//
+//	from KSEAF, ABBA, SUPI; the AUSF only returns KSEAF. Our AUSF
+//	returns KAMF pre-derived as a convenience. Correct in-process;
+//	move to strict A.7 KDF in the SEAF once AUSF is a distinct NF.
 //
 // TODO(spec: TS 33.501 §6.1.3.2 step 11 + §6.1.4.1a) — home-network
-//   auth confirmation: after successful RES* verification the AUSF
-//   shall invoke Nudm_UEAuthentication_ResultConfirmation to the
-//   UDM linking the auth result to subsequent procedures. Required
-//   for "increased home control" (fraud prevention). Not wired.
+//
+//	auth confirmation: after successful RES* verification the AUSF
+//	shall invoke Nudm_UEAuthentication_ResultConfirmation to the
+//	UDM linking the auth result to subsequent procedures. Required
+//	for "increased home control" (fraud prevention). Not wired.
 //
 // TODO(spec: TS 33.501 §6.1.3.3.2) — sync-failure flow proper split:
-//   SEAF sends Nausf_UEAuthentication_Authenticate with
-//   "synchronisation failure indication" + RAND + AUTS, waits for
-//   AUSF response BEFORE initiating new auth. We call
-//   ausf.UpdateSQNOnSyncFailure then immediately startAuthentication
-//   synchronously in-process; the ordering constraint becomes
-//   material once AUSF is over N12.
+//
+//	SEAF sends Nausf_UEAuthentication_Authenticate with
+//	"synchronisation failure indication" + RAND + AUTS, waits for
+//	AUSF response BEFORE initiating new auth. We call
+//	ausf.UpdateSQNOnSyncFailure then immediately startAuthentication
+//	synchronously in-process; the ordering constraint becomes
+//	material once AUSF is over N12.
 package gmm
 
 import (
@@ -83,7 +91,6 @@ import (
 	"fmt"
 
 	genngap "github.com/mmt/asn1go/protocols/ngap/generated"
-	nas "github.com/mmt/nasgen/generated"
 	"github.com/mmt/mmt-studio-core/libs/sacrypto"
 	"github.com/mmt/mmt-studio-core/nf/amf/gmm/fsm"
 	"github.com/mmt/mmt-studio-core/nf/amf/gnbctx"
@@ -91,9 +98,11 @@ import (
 	"github.com/mmt/mmt-studio-core/nf/amf/ngap/uectxrelease"
 	"github.com/mmt/mmt-studio-core/nf/amf/security"
 	"github.com/mmt/mmt-studio-core/nf/amf/uectx"
+	"github.com/mmt/mmt-studio-core/nf/attribution"
 	"github.com/mmt/mmt-studio-core/nf/ausf"
 	"github.com/mmt/mmt-studio-core/oam/logger"
 	"github.com/mmt/mmt-studio-core/oam/pm"
+	nas "github.com/mmt/nasgen/generated"
 )
 
 func init() {
@@ -145,6 +154,17 @@ func startAuthentication(ue *uectx.AmfUeCtx) {
 		log.WithIMSI(ue.IMSI).Errorf("ausf.GenerateAV amfUeID=%d: %v",
 			ue.AmfUeNGAPID, err)
 		pm.Inc(pm.AuthFail, 1)
+		origin := "unknown"
+		cellID := ""
+		if ue != nil {
+			if ue.GnbKey != "" {
+				origin = ue.GnbKey
+			}
+			if len(ue.UserLocationNRCGI) > 0 {
+				cellID = fmt.Sprintf("%x", ue.UserLocationNRCGI)
+			}
+		}
+		attribution.RecordAuthFailure(ue.IMSI, origin, cellID)
 		// TS 24.501 §5.5.1.2.5 + §5.4.1.2 — subscriber unknown / no
 		// credentials = "Illegal UE" (cause #3). Python reference sends
 		// REGISTRATION REJECT cause #3 and tears down the N1 NAS
@@ -234,6 +254,17 @@ func startAuthentication(ue *uectx.AmfUeCtx) {
 	// Cache for T3560 auth-leg retransmit (TS 24.501 §10.2 N3560=4).
 	ue.RetxNASPDU = encoded
 	pm.Inc(pm.AuthAtt, 1)
+	origin := "unknown"
+	cellID := ""
+	if ue != nil {
+		if ue.GnbKey != "" {
+			origin = ue.GnbKey
+		}
+		if len(ue.UserLocationNRCGI) > 0 {
+			cellID = fmt.Sprintf("%x", ue.UserLocationNRCGI)
+		}
+	}
+	attribution.RecordAuthFailure(ue.IMSI, origin, cellID)
 	log.WithIMSI(ue.IMSI).Infof("Authentication Request sent amfUeID=%d ngKSI=%d (UE-NASKSI=%d, prior-stored=%d/activated=%t) rand=%s",
 		ue.AmfUeNGAPID, ue.Security.PendingNGKSI,
 		ue.NASKSI, ue.Security.NGKSI, ue.Security.Activated,
@@ -462,9 +493,10 @@ func handleAuthenticationFailure(ue *uectx.AmfUeCtx, _ uint8, inner []byte, _ []
 // (TS 24.501 §8.2.3) then releases the N1 NAS signalling connection.
 //
 // Spec (§5.4.1.3.5):
-//   "the network should send an AUTHENTICATION REJECT message to the UE.
-//    The network shall maintain, if any, the 5GMM-context and 5G NAS
-//    security context of the UE unchanged."
+//
+//	"the network should send an AUTHENTICATION REJECT message to the UE.
+//	 The network shall maintain, if any, the 5GMM-context and 5G NAS
+//	 security context of the UE unchanged."
 //
 // Per the UE-side receipt rules (§5.4.1.3.5), upon AUTH REJECT the UE
 // will enter 5U3 ROAMING NOT ALLOWED and wipe its 5G-GUTI / TAI list /
@@ -472,10 +504,11 @@ func handleAuthenticationFailure(ue *uectx.AmfUeCtx, _ uint8, inner []byte, _ []
 // release the N1 NAS connection and mark our ctx deregistered.
 //
 // TODO(spec: TS 24.501 §5.4.1.3.5 "5G-GUTI was used") — when the initial
-//   NAS identity was 5G-GUTI (not SUCI), the network SHOULD initiate an
-//   identification procedure first to retrieve the SUCI and restart
-//   authentication with it; only after a second failure do we reject.
-//   We don't distinguish GUTI vs SUCI auth-trigger today.
+//
+//	NAS identity was 5G-GUTI (not SUCI), the network SHOULD initiate an
+//	identification procedure first to retrieve the SUCI and restart
+//	authentication with it; only after a second failure do we reject.
+//	We don't distinguish GUTI vs SUCI auth-trigger today.
 func sendAuthenticationReject(ue *uectx.AmfUeCtx) {
 	log := logger.Get("amf.gmm.authentication")
 	pm.Inc(pm.AuthFail, 1)
