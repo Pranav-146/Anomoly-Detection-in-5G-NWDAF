@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/mmt/mmt-studio-core/nf/attribution"
 	"github.com/mmt/mmt-studio-core/nf/nwdaf/analytics"
 	"github.com/mmt/mmt-studio-core/oam/logger"
 	"github.com/mmt/mmt-studio-core/oam/pm"
@@ -108,8 +109,11 @@ func CollectAMFData() []analytics.DataPoint {
 			pm.SMSessAtt:   pm.Default.Get(pm.SMSessAtt),
 			pm.SMSessFail:  pm.Default.Get(pm.SMSessFail),
 		}
+		snapshot := attribution.Snapshot()
 		data, _ := json.Marshal(map[string]any{
-			"pm_counters": pmCounters,
+			"pm_counters":      pmCounters,
+			"attribution":      snapshot,
+			"attribution_rows": len(snapshot),
 		})
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "AMF",
