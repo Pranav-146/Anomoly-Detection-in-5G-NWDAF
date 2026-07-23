@@ -46,7 +46,10 @@ if __name__ == "__main__":
 
     for candidate in candidates:
         assessment = assess_contextual_risk(candidate, cfg=cfg)
-        print(f"SUPI={assessment.supi} risk={assessment.risk_level.value} score={assessment.risk_score} source={assessment.detection_source}")
-        for explanation in assessment.explanations:
-            print(f"  - {explanation}")
+        print(f"SUPI={assessment.supi}")
+        print(f"Risk Level={assessment.risk_level.value}")
+        print(f"Risk Score={assessment.risk_score}")
+        print("Reasons=")
+        for reason in assessment.reasons:
+            print(f"  - {reason}")
         print()

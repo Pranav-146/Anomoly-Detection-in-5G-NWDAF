@@ -6,14 +6,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from contextual_risk_assessment import (
     CandidateDetection,
-    ContextualRiskAssessment,
     RiskLevel,
+    assess_contextual_risk,
 )
 
 
 class ContextualRiskAssessmentTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assessor = ContextualRiskAssessment()
 
     def test_low_risk(self) -> None:
         candidate = CandidateDetection(
@@ -25,7 +23,7 @@ class ContextualRiskAssessmentTests(unittest.TestCase):
             timestamp=100.0,
         )
 
-        assessment = self.assessor.assess(candidate)
+        assessment = assess_contextual_risk(candidate)
 
         self.assertEqual(assessment.supi, "imsi-1001")
         self.assertEqual(assessment.risk_level, RiskLevel.LOW)
@@ -60,7 +58,7 @@ class ContextualRiskAssessmentTests(unittest.TestCase):
             timestamp=120.0,
         )
 
-        assessment = self.assessor.assess(candidate)
+        assessment = assess_contextual_risk(candidate)
 
         self.assertEqual(assessment.risk_level, RiskLevel.MEDIUM)
         self.assertEqual(assessment.risk_score, 50)
@@ -76,7 +74,7 @@ class ContextualRiskAssessmentTests(unittest.TestCase):
             timestamp=130.0,
         )
 
-        assessment = self.assessor.assess(candidate)
+        assessment = assess_contextual_risk(candidate)
 
         self.assertEqual(assessment.risk_level, RiskLevel.HIGH)
         self.assertEqual(assessment.risk_score, 100)
