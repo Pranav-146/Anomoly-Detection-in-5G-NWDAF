@@ -29,6 +29,17 @@ import (
 	"github.com/mmt/mmt-studio-core/oam/pm"
 )
 
+// CollectPMCounters returns the current live PM counters used by the NWDAF feature pipeline.
+func CollectPMCounters() map[string]any {
+	return map[string]any{
+		pm.AuthAtt:     pm.Default.Get(pm.AuthAtt),
+		pm.AuthFail:    pm.Default.Get(pm.AuthFail),
+		pm.AuthFailMAC: pm.Default.Get(pm.AuthFailMAC),
+		pm.SMSessAtt:   pm.Default.Get(pm.SMSessAtt),
+		pm.SMSessFail:  pm.Default.Get(pm.SMSessFail),
+	}
+}
+
 var log = logger.Get("nwdaf.collectors")
 
 // CollectAll runs all collectors and returns the combined data points.
@@ -106,30 +117,6 @@ func CollectAMFData() []analytics.DataPoint {
 			DataJSON:    string(data),
 			CollectedAt: now,
 		})
-	}()
-
-	// Forward extracted PM counter features to the dataset collector.
-	// This is intentionally isolated and does not alter analytics behavior.
-	func() {
-		defer func() { recover() }()
-		if len(points) == 0 {
-			return
-		}
-		for _, point := range points {
-			if point.AnalyticsID != analytics.AnalyticsAbnormalBehaviour {
-				continue
-			}
-			var data map[string]any
-			if err := json.Unmarshal([]byte(point.DataJSON), &data); err != nil {
-				continue
-			}
-			if pmCounters, ok := data["pm_counters"].(map[string]any); ok {
-				features, err := analytics.ExtractFeatures(pmCounters)
-				if err == nil {
-					_ = analytics.AppendFeatureVector(features)
-				}
-			}
-		}
 	}()
 
 	log.Debugf("AMF collector: %d points", len(points))

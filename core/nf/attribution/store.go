@@ -1,5 +1,4 @@
 package attribution
-package attribution
 
 import (
 	"fmt"

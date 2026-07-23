@@ -3,18 +3,18 @@
 // Spec anchors:
 //
 //   - TS 23.288 §6.1     Procedures for analytics exposure — the umbrella
-//                         service definition for NWDAF consumers (request +
-//                         subscribe). GetAnalytics() / Subscribe() below
-//                         realise §6.1.2 (Analytics Request) and §6.1.1
-//                         (Analytics Subscribe/Unsubscribe) respectively.
+//     service definition for NWDAF consumers (request +
+//     subscribe). GetAnalytics() / Subscribe() below
+//     realise §6.1.2 (Analytics Request) and §6.1.1
+//     (Analytics Subscribe/Unsubscribe) respectively.
 //   - TS 23.288 §6.1.1   Analytics Subscribe/Unsubscribe — drives the
-//                         Subscribe() / Unsubscribe() / processSubscriptions()
-//                         call loop.
+//     Subscribe() / Unsubscribe() / processSubscriptions()
+//     call loop.
 //   - TS 23.288 §6.1.2   Analytics Request — drives the one-shot
-//                         GetAnalytics() entry point.
+//     GetAnalytics() entry point.
 //   - TS 23.288 §6.2     Procedures for Data Collection — the
-//                         collectionLoop() runs the §6.2.2 cycle (data from
-//                         NFs into nwdaf_data_points) every collectInterval.
+//     collectionLoop() runs the §6.2.2 cycle (data from
+//     NFs into nwdaf_data_points) every collectInterval.
 //
 // Deferred surfaces (PDFs not local; TODO(spec:) prose only):
 //
@@ -37,6 +37,7 @@ import (
 	"github.com/mmt/mmt-studio-core/db/engine"
 	"github.com/mmt/mmt-studio-core/nf/nwdaf/analytics"
 	"github.com/mmt/mmt-studio-core/nf/nwdaf/collectors"
+	"github.com/mmt/mmt-studio-core/nf/nwdaf/dataset"
 	"github.com/mmt/mmt-studio-core/oam/logger"
 )
 
@@ -319,6 +320,16 @@ func (s *Service) collectionLoop() {
 
 func (s *Service) collectAll() {
 	allPoints := collectors.CollectAll()
+
+	pmCounters := collectors.CollectPMCounters()
+	features, err := analytics.ExtractFeatures(pmCounters)
+	if err == nil {
+		if err := dataset.AppendFeatureVector(features); err != nil {
+			log.Errorf("append feature vector: %v", err)
+		}
+	} else {
+		log.Errorf("extract features: %v", err)
+	}
 
 	// Store in DB
 	now := float64(time.Now().Unix())

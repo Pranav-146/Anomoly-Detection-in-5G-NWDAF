@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import uvicorn
@@ -23,7 +22,18 @@ class PredictionResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok"}
+    return {"status": "ok", "model_ready": predictor.model_path.exists()}
+
+
+@app.post("/train")
+def train() -> dict[str, Any]:
+    try:
+        predictor.train(save=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"status": "trained", "model_path": str(predictor.model_path)}
 
 
 @app.post("/predict", response_model=PredictionResponse)
