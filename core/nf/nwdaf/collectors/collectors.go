@@ -3,11 +3,11 @@
 // Spec anchors:
 //
 //   - TS 23.288 §6.2     Procedures for Data Collection — top-level
-//                         framing for the collection cycle.
+//     framing for the collection cycle.
 //   - TS 23.288 §6.2.2   Data Collection from NFs — each Collect*Data()
-//                         function below realises the §6.2.2 cycle for
-//                         one NF, returning DataPoint slices that the
-//                         analytics engine can later aggregate.
+//     function below realises the §6.2.2 cycle for
+//     one NF, returning DataPoint slices that the
+//     analytics engine can later aggregate.
 //
 // Deferred:
 //
@@ -104,6 +104,30 @@ func CollectAMFData() []analytics.DataPoint {
 		})
 	}()
 
+	// Forward extracted PM counter features to the dataset collector.
+	// This is intentionally isolated and does not alter analytics behavior.
+	func() {
+		defer func() { recover() }()
+		if len(points) == 0 {
+			return
+		}
+		for _, point := range points {
+			if point.AnalyticsID != analytics.AnalyticsAbnormalBehaviour {
+				continue
+			}
+			var data map[string]any
+			if err := json.Unmarshal([]byte(point.DataJSON), &data); err != nil {
+				continue
+			}
+			if pmCounters, ok := data["pm_counters"].(map[string]any); ok {
+				features, err := analytics.ExtractFeatures(pmCounters)
+				if err == nil {
+					_ = analytics.AppendFeatureVector(features)
+				}
+			}
+		}
+	}()
+
 	log.Debugf("AMF collector: %d points", len(points))
 	return points
 }
@@ -179,8 +203,8 @@ func CollectUPFData() []analytics.DataPoint {
 	func() {
 		defer func() { recover() }()
 		data, _ := json.Marshal(map[string]any{
-			"active_sessions":  0,
-			"io_thread_alive":  false,
+			"active_sessions": 0,
+			"io_thread_alive": false,
 		})
 		points = append(points, analytics.DataPoint{
 			SourceNF:    "UPF",

@@ -22,6 +22,7 @@ package analytics
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"time"
 )
@@ -387,6 +388,17 @@ func computeQoSSustainability(dataPoints []DataPoint) AnalyticsResult {
 // computeAbnormalBehaviour — Abnormal behaviour related network data
 // analytics. Spec anchor: TS 23.288 §6.7.5.
 func computeAbnormalBehaviour(dataPoints []DataPoint) AnalyticsResult {
+	switch DetectorMode {
+	case "ml":
+		return computeML(dataPoints)
+	case "threshold":
+		return computeThreshold(dataPoints)
+	default:
+		return computeThreshold(dataPoints)
+	}
+}
+
+func computeThreshold(dataPoints []DataPoint) AnalyticsResult {
 	var alerts []map[string]any
 
 	for _, dp := range dataPoints {
@@ -395,35 +407,7 @@ func computeAbnormalBehaviour(dataPoints []DataPoint) AnalyticsResult {
 		if counters == nil {
 			continue
 		}
-
-		authFail := toFloat(counters["AUTH.Fail"])
-		authAtt := toFloat(counters["AUTH.Att"])
-		if authAtt > 0 && authFail/authAtt > 0.3 {
-			alerts = append(alerts, map[string]any{
-				"type":     "AUTH_FAILURE_SPIKE",
-				"severity": "high",
-				"detail":   fmt.Sprintf("Auth failure rate %.0f%% (%.0f/%.0f)", authFail/authAtt*100, authFail, authAtt),
-			})
-		}
-
-		macFail := toFloat(counters["AUTH.FailMAC"])
-		if macFail > 5 {
-			alerts = append(alerts, map[string]any{
-				"type":     "MAC_VERIFICATION_FAILURES",
-				"severity": "critical",
-				"detail":   fmt.Sprintf("%.0f MAC failures detected -- possible replay/MITM", macFail),
-			})
-		}
-
-		sessFail := toFloat(counters["SM.SessFail"])
-		sessAtt := toFloat(counters["SM.SessAtt"])
-		if sessAtt > 0 && sessFail/sessAtt > 0.2 {
-			alerts = append(alerts, map[string]any{
-				"type":     "SESSION_FAILURE_SPIKE",
-				"severity": "medium",
-				"detail":   fmt.Sprintf("Session failure rate %.0f%%", sessFail/sessAtt*100),
-			})
-		}
+		alerts = append(alerts, buildAbnormalAlerts(counters)...)
 	}
 
 	confidence := 0.5
@@ -431,6 +415,79 @@ func computeAbnormalBehaviour(dataPoints []DataPoint) AnalyticsResult {
 		confidence = 0.7
 	}
 
+	return buildAbnormalResult(alerts, confidence)
+}
+
+func computeML(dataPoints []DataPoint) AnalyticsResult {
+	var counters map[string]any
+	for i := len(dataPoints) - 1; i >= 0; i-- {
+		data := parseDataJSON(dataPoints[i])
+		if pm, ok := data["pm_counters"].(map[string]any); ok && pm != nil {
+			counters = pm
+			break
+		}
+	}
+
+	if counters == nil {
+		return computeThreshold(dataPoints)
+	}
+
+	features, err := ExtractFeatures(counters)
+	if err != nil {
+		log.Printf("NWDAF ML detector feature extraction failed, falling back to threshold: %v", err)
+		return computeThreshold(dataPoints)
+	}
+
+	prediction, confidence, err := Predict(features)
+	if err != nil {
+		log.Printf("NWDAF ML detector request failed, falling back to threshold: %v", err)
+		return computeThreshold(dataPoints)
+	}
+
+	alerts := []map[string]any{}
+	if prediction {
+		alerts = buildAbnormalAlerts(counters)
+	}
+
+	return buildAbnormalResult(alerts, confidence)
+}
+
+func buildAbnormalAlerts(counters map[string]any) []map[string]any {
+	var alerts []map[string]any
+
+	authFail := toFloat(counters["AUTH.Fail"])
+	authAtt := toFloat(counters["AUTH.Att"])
+	if authAtt > 0 && authFail/authAtt > 0.3 {
+		alerts = append(alerts, map[string]any{
+			"type":     "AUTH_FAILURE_SPIKE",
+			"severity": "high",
+			"detail":   fmt.Sprintf("Auth failure rate %.0f%% (%.0f/%.0f)", authFail/authAtt*100, authFail, authAtt),
+		})
+	}
+
+	macFail := toFloat(counters["AUTH.FailMAC"])
+	if macFail > 5 {
+		alerts = append(alerts, map[string]any{
+			"type":     "MAC_VERIFICATION_FAILURES",
+			"severity": "critical",
+			"detail":   fmt.Sprintf("%.0f MAC failures detected -- possible replay/MITM", macFail),
+		})
+	}
+
+	sessFail := toFloat(counters["SM.SessFail"])
+	sessAtt := toFloat(counters["SM.SessAtt"])
+	if sessAtt > 0 && sessFail/sessAtt > 0.2 {
+		alerts = append(alerts, map[string]any{
+			"type":     "SESSION_FAILURE_SPIKE",
+			"severity": "medium",
+			"detail":   fmt.Sprintf("Session failure rate %.0f%%", sessFail/sessAtt*100),
+		})
+	}
+
+	return alerts
+}
+
+func buildAbnormalResult(alerts []map[string]any, confidence float64) AnalyticsResult {
 	return AnalyticsResult{
 		Result: map[string]any{
 			"anomaly_detected": len(alerts) > 0,
