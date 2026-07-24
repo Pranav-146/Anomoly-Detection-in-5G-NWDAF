@@ -1,3 +1,5 @@
+import csv
+import os
 from flask import Flask, render_template_string, request, jsonify
 import time
 
@@ -15,7 +17,25 @@ engine = SecurityLayerEngine()
 DEMO_SECRET_KEY = b"subscriber_shared_secret_001"
 
 # Track active cryptographic challenges locally for the demo web UI
-active_challenges = {} 
+active_challenges = {}
+
+HISTORY_CSV = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'phase3', 'closed_loop_demo_history.csv')
+
+
+def append_history_entry(supi: str, action: str, reason: str, detection_source: str = 'WEB_APP') -> None:
+    os.makedirs(os.path.dirname(HISTORY_CSV), exist_ok=True)
+    file_exists = os.path.exists(HISTORY_CSV)
+    with open(HISTORY_CSV, 'a', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(handle, fieldnames=['timestamp', 'supi', 'action', 'detection_source', 'reason'])
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow({
+            'timestamp': time.time(),
+            'supi': supi,
+            'action': action,
+            'detection_source': detection_source,
+            'reason': reason,
+        })
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -126,6 +146,7 @@ def process_event():
         verdict['action'] = 'BLOCK'
     
     if verdict.get('action') == 'BLOCK':
+        append_history_entry(supi, 'BLOCKED', 'Blocked via web demo after failed/fake attempt', 'WEB_APP')
         challenge_data = stepup_auth.issue_challenge()
         
         # Convert bytes token output to clean hex string for JSON stability
@@ -162,11 +183,14 @@ def verify_auth():
             engine.clear_risk(supi)
         elif hasattr(engine, 'clear_risk_profile'):
             engine.clear_risk_profile(supi)
-            
+
+        append_history_entry(supi, 'REAUTH_SUCCESS', 'Re-auth successful; block cleared via web demo', 'WEB_APP')
         active_challenges.pop(supi, None)
         return jsonify({'success': True, 'message': '🔒 Crypto-verification successful! Subscriber trust restored.'})
+
+    append_history_entry(supi, 'REAUTH_FAILED', 'Re-auth failed; block remains active', 'WEB_APP')
     
     return jsonify({'success': False, 'message': '❌ Invalid HMAC token code. Block persists.'})
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0",debug=True, port=5000)
+    app.run(host="0.0.0.0",debug=True, port=5003)

@@ -6,12 +6,22 @@ import os, sys, json, time, logging, threading
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(THIS_DIR, ".."))
+REPO_ROOT = os.path.abspath(os.path.join(PROJECT_ROOT, ".."))
 
-# Add project root, libs, and libs/pycrate to path
-for p in (PROJECT_ROOT, os.path.join(PROJECT_ROOT, "libs"),
-          os.path.join(PROJECT_ROOT, "libs", "pycrate")):
+# Add tester root, repo root, libs, libs/pycrate, and the Security Layer
+# directory to path so the app can import both tester modules and the
+# repository-level phase3/Security Layer modules.
+for p in (PROJECT_ROOT, REPO_ROOT, os.path.join(PROJECT_ROOT, "libs"),
+          os.path.join(PROJECT_ROOT, "libs", "pycrate"),
+          os.path.join(REPO_ROOT, "Security Layer")):
     if p not in sys.path:
         sys.path.insert(0, p)
+
+from event_log import WindowEvent
+from realtime_engine import SecurityLayerEngine
+from nwdaf_client import NWDAFClientConfig, NWDAFUnavailable, fetch_events
+from phase3.closed_loop_controller import ClosedLoopController, DetectionEvent
+from phase3.detection_adapter import DetectionAdapter
 
 # ── Centralized logging (must be before any other imports that use get_logger) ──
 from src.tester_logger import (
@@ -44,6 +54,7 @@ from src.protocol.gnb_config import (
 )
 from src.testcases.test_runner import TestRunner
 from src.testcases.registry import discover_all
+from src.closed_loop_bridge import ClosedLoopBridge
 from src.testcases.traffic.tc_sequence import (
     SequenceTestCase, load_sequences, upsert_sequence,
     delete_sequence, get_sequence,
@@ -74,6 +85,18 @@ gnb_pool = []
 ue_pool = []
 runner = TestRunner()
 gtpu_manager = GtpuManager()
+
+# Closed-loop bridge for tester-fed security events: a real WindowEvent enters
+# the existing security layer engine, which then forwards any candidate signal
+# to the phase-3 adapter/controller for the enforcement decision.
+closed_loop_controller = ClosedLoopController(
+    history_csv_path=os.path.join(PROJECT_ROOT, "phase3", "closed_loop_demo_history.csv")
+)
+closed_loop_engine = SecurityLayerEngine()
+closed_loop_adapter = DetectionAdapter(controller=closed_loop_controller, detector=closed_loop_engine)
+closed_loop_engine.detection_callback = closed_loop_adapter.handle_detector_result
+closed_loop_bridge = ClosedLoopBridge(engine=closed_loop_engine, adapter=closed_loop_adapter)
+runner.closed_loop_bridge = closed_loop_bridge
 
 # ── AI Engine ──
 _ai_config = OllamaConfig()
@@ -220,6 +243,112 @@ async def api_ue_pdu_session(imsi: str, request: Request):
                                    sst=data.get("sst", 1), sd=data.get("sd"),
                                    pdu_session_id=data.get("psi", 1))
     return {"ok": ok}
+
+
+@app.post("/api/closed-loop/process")
+async def api_closed_loop_process(request: Request):
+    """Accept a tester-side security event and forward it through the
+    existing detector -> adapter -> closed-loop controller path.
+    """
+    data = await request.json() if await request.body() else {}
+    supi = data.get("supi")
+    if not supi:
+        raise HTTPException(status_code=400, detail="supi is required")
+
+    event = WindowEvent(
+        supi=str(supi),
+        origin=str(data.get("origin", "cellA")),
+        window_index=int(data.get("window_index", 0)),
+        attempts=int(data.get("attempts", 0)),
+        failures=int(data.get("failures", 0)),
+        timestamp=float(data.get("timestamp", time.time())),
+    )
+
+    result = closed_loop_engine.process_event(event, now=event.timestamp)
+    decision = closed_loop_adapter.last_decision
+    if result.get("candidate") and decision is None:
+        decision = closed_loop_controller.process_detection(
+            DetectionEvent(
+                timestamp=event.timestamp,
+                supi=event.supi,
+                detection_source="UNKNOWN",
+                anomaly_score=event.raw_ratio,
+                rule_triggered=bool(result.get("tier1", {}).get("tier1_candidate", False)),
+                if_triggered=bool(result.get("tier2", {}).get("tier2_candidate", False)),
+                reason="Detection candidate raised via fallback path",
+            )
+        )
+        closed_loop_adapter.last_decision = decision
+
+    return {
+        "ok": True,
+        "candidate": bool(result.get("candidate")),
+        "decision": decision.action.value if decision else "NONE",
+        "detection_source": decision.detection_source if decision else "UNKNOWN",
+        "reason": decision.reason if decision else "No detection decision emitted",
+        "result": result,
+        "summary": closed_loop_adapter.get_summary(),
+    }
+
+
+@app.post("/api/closed-loop/process-live")
+async def api_closed_loop_process_live(request: Request):
+    """Pull live NWDAF export rows for a SUPI and stream them through the
+    closed-loop pipeline using the real Core data source.
+    """
+    data = await request.json() if await request.body() else {}
+    supi = data.get("supi")
+    if not supi:
+        raise HTTPException(status_code=400, detail="supi is required")
+
+    cfg = NWDAFClientConfig(
+        base_url=str(data.get("base_url", NWDAFClientConfig().base_url)),
+        analytics_id=str(data.get("analytics_id", NWDAFClientConfig().analytics_id)),
+        timeout_seconds=float(data.get("timeout_seconds", NWDAFClientConfig().timeout_seconds)),
+        origin_field=data.get("origin_field"),
+    )
+    limit = int(data.get("limit", 1000))
+    since_unix = float(data.get("since_unix", 0.0))
+
+    try:
+        events = fetch_events(str(supi), cfg, limit=limit, since_unix=since_unix)
+    except NWDAFUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    processed = []
+    for event in events:
+        result = closed_loop_engine.process_event(event, now=event.timestamp)
+        decision = closed_loop_adapter.last_decision
+        if result.get("candidate") and decision is None:
+            decision = closed_loop_controller.process_detection(
+                DetectionEvent(
+                    timestamp=event.timestamp,
+                    supi=event.supi,
+                    detection_source="UNKNOWN",
+                    anomaly_score=event.raw_ratio,
+                    rule_triggered=bool(result.get("tier1", {}).get("tier1_candidate", False)),
+                    if_triggered=bool(result.get("tier2", {}).get("tier2_candidate", False)),
+                    reason="Detection candidate raised via fallback path",
+                )
+            )
+            closed_loop_adapter.last_decision = decision
+        processed.append(
+            {
+                "supi": event.supi,
+                "window_index": event.window_index,
+                "candidate": bool(result.get("candidate")),
+                "decision": decision.action.value if decision else "NONE",
+                "reason": decision.reason if decision else "No detection decision emitted",
+            }
+        )
+
+    return {
+        "ok": True,
+        "supi": str(supi),
+        "processed_count": len(processed),
+        "events": processed,
+        "summary": closed_loop_adapter.get_summary(),
+    }
 
 
 # ── SIM DB CRUD API ──

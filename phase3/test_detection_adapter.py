@@ -55,7 +55,7 @@ class DetectionAdapterTests(unittest.TestCase):
 
         self.assertEqual(len(controller.get_history()), 1)
         decision = controller.get_history()[0]
-        self.assertEqual(decision.action, EnforcementAction.SESSION_RELEASE)
+        self.assertEqual(decision.action, EnforcementAction.LOG_ONLY)
         self.assertEqual(decision.supi, "imsi-1001")
         self.assertEqual(decision.detection_source, "BOTH")
         self.assertEqual(adapter.get_summary()["combined_detections"], 1)

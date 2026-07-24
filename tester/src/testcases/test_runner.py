@@ -97,6 +97,7 @@ class TestRunner:
         self.results = []
         self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="test")
         self._history = _load_history()
+        self.closed_loop_bridge = None
 
     def register(self, test_cls):
         """Register a TestCase subclass."""
@@ -342,6 +343,12 @@ class TestRunner:
                 trace.extend(gnb_trace)
         trace.sort(key=lambda x: x.get("time", 0))
         tc.result.protocol_trace = trace
+
+        if self.closed_loop_bridge is not None:
+            try:
+                self.closed_loop_bridge.process_result(tc.result, params=params)
+            except Exception as exc:
+                log.warning("Closed-loop forwarding failed for %s: %s", name, exc)
 
         self._persist()
         return tc.result

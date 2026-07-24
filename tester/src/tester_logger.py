@@ -204,7 +204,7 @@ def setup_logging(log_dir: str = "", level: str = "DEBUG",
     # --- Rotating file handler ---
     if file:
         if not log_dir:
-            log_dir = "/var/log/sa_tester"
+            log_dir = os.path.join(PROJECT_ROOT, "logs")
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, "sa_tester.log")
 

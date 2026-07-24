@@ -15,7 +15,7 @@ from phase3.closed_loop_controller import (
 
 
 class ClosedLoopControllerTests(unittest.TestCase):
-    def test_process_detection_returns_session_release(self) -> None:
+    def test_process_detection_defaults_to_log_only(self) -> None:
         controller = ClosedLoopController()
         event = DetectionEvent(
             timestamp=100.0,
@@ -28,9 +28,47 @@ class ClosedLoopControllerTests(unittest.TestCase):
 
         decision = controller.process_detection(event)
 
-        self.assertEqual(decision.action, EnforcementAction.SESSION_RELEASE)
+        self.assertEqual(decision.action, EnforcementAction.LOG_ONLY)
         self.assertEqual(decision.supi, "imsi-001")
         self.assertEqual(len(controller.get_history()), 1)
+
+    def test_can_enable_session_release_when_configured(self) -> None:
+        controller = ClosedLoopController(default_action=EnforcementAction.SESSION_RELEASE)
+        event = DetectionEvent(
+            timestamp=101.0,
+            supi="imsi-002",
+            detection_source="IF",
+            anomaly_score=0.82,
+            rule_triggered=False,
+            if_triggered=True,
+        )
+
+        decision = controller.process_detection(event)
+
+        self.assertEqual(decision.action, EnforcementAction.SESSION_RELEASE)
+        self.assertEqual(decision.supi, "imsi-002")
+
+    def test_writes_history_to_csv_when_path_is_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "history.csv")
+            controller = ClosedLoopController(history_csv_path=csv_path)
+            event = DetectionEvent(
+                timestamp=102.0,
+                supi="imsi-003",
+                detection_source="RULE",
+                anomaly_score=0.41,
+                rule_triggered=True,
+                if_triggered=False,
+            )
+
+            controller.process_detection(event)
+
+            with open(csv_path, newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["supi"], "imsi-003")
+        self.assertEqual(rows[0]["action"], "LOG_ONLY")
 
     def test_export_history_csv(self) -> None:
         controller = ClosedLoopController()
@@ -52,7 +90,7 @@ class ClosedLoopControllerTests(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["supi"], "imsi-002")
-        self.assertEqual(rows[0]["action"], "SESSION_RELEASE")
+        self.assertEqual(rows[0]["action"], "LOG_ONLY")
 
 
 if __name__ == "__main__":

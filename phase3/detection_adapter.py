@@ -34,6 +34,8 @@ class DetectionAdapter:
         self.if_detections = 0
         self.combined_detections = 0
         self.total_enforcement_actions = 0
+        self.last_detection_event: Optional[DetectionEvent] = None
+        self.last_decision: Optional[Any] = None
 
     def attach_detector(self, detector: Any) -> "DetectionAdapter":
         self.detector = detector
@@ -52,6 +54,7 @@ class DetectionAdapter:
             return None
 
         detection_event = self._build_detection_event(event, result)
+        self.last_detection_event = detection_event
         self._update_statistics(detection_event)
 
         print("[Detection]")
@@ -61,6 +64,7 @@ class DetectionAdapter:
         print()
 
         decision = self.controller.process_detection(detection_event)
+        self.last_decision = decision
         self.total_enforcement_actions += 1
 
         print("[Closed Loop]")

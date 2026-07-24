@@ -1,0 +1,5 @@
+timestamp,supi,action,detection_source,reason
+123.0,demo-supi,LOG_ONLY,RULE,Tier 1 hard rule triggered
+1784883816.0,001010000000001,LOG_ONLY,RULE,Tier 1 hard rule triggered
+555.0,audit-check,LOG_ONLY,RULE,Tier 1 hard rule triggered
+180.0,imsi-demo-001,LOG_ONLY,RULE,Tier 1 hard rule triggered

@@ -52,14 +52,18 @@ class EnforcementDecision:
 
 
 class ClosedLoopController:
-    """Baseline closed-loop controller that acts on every detection event."""
+    """Lab-safe closed-loop controller that defaults to audit-only decisions."""
 
-    def __init__(self, source_name: str = "CLOSED_LOOP_CONTROLLER") -> None:
+    def __init__(self, source_name: str = "CLOSED_LOOP_CONTROLLER",
+                 default_action: EnforcementAction = EnforcementAction.LOG_ONLY,
+                 history_csv_path: Optional[str | Path] = None) -> None:
         self._source_name = source_name
+        self._default_action = default_action
+        self._history_csv_path = Path(history_csv_path) if history_csv_path else None
         self._history: List[EnforcementDecision] = []
 
     def process_detection(self, event: DetectionEvent) -> EnforcementDecision:
-        """Apply the insecure baseline policy: every detection triggers release."""
+        """Apply a safe lab-mode policy by default and allow opt-in release."""
 
         if event is None:
             return EnforcementDecision(
@@ -71,20 +75,30 @@ class ClosedLoopController:
                 source=self._source_name,
             )
 
+        action = self._default_action
+        reason = (
+            event.reason
+            or "Detection event received; logging only in lab-safe mode"
+        )
+        confidence = 0.85 if action == EnforcementAction.LOG_ONLY else 1.0
+
+        if action == EnforcementAction.SESSION_RELEASE:
+            reason = (
+                event.reason
+                or "Detection event received; session release permitted by configuration"
+            )
+
         decision = EnforcementDecision(
             timestamp=event.timestamp,
             supi=event.supi,
-            action=EnforcementAction.SESSION_RELEASE,
-            reason=(
-                event.reason
-                or "Detection event received; immediate session release applied "
-                "(baseline insecure policy)"
-            ),
-            confidence=1.0,
+            action=action,
+            reason=reason,
+            confidence=confidence,
             source=self._source_name,
             detection_source=event.detection_source,
         )
         self._history.append(decision)
+        self._append_history_csv(decision)
         return decision
 
     def get_history(self) -> List[EnforcementDecision]:
@@ -96,6 +110,29 @@ class ClosedLoopController:
         """Clear the in-memory enforcement history."""
 
         self._history.clear()
+
+    def _append_history_csv(self, decision: EnforcementDecision) -> None:
+        if self._history_csv_path is None:
+            return
+
+        self._history_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        file_exists = self._history_csv_path.exists()
+        with self._history_csv_path.open("a", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=["timestamp", "supi", "action", "detection_source", "reason"],
+            )
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(
+                {
+                    "timestamp": decision.timestamp,
+                    "supi": decision.supi,
+                    "action": decision.action.value,
+                    "detection_source": decision.detection_source,
+                    "reason": decision.reason,
+                }
+            )
 
     def export_history_csv(self, path: str | Path) -> None:
         """Export enforcement history to a CSV file with the requested columns."""

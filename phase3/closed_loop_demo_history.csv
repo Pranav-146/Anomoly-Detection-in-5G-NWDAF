@@ -2,3 +2,10 @@ timestamp,supi,action,detection_source,reason
 100.0,imsi-0009,SESSION_RELEASE,RULE,Detection event received; immediate session release applied (baseline insecure policy)
 101.0,imsi-0010,SESSION_RELEASE,IF,Detection event received; immediate session release applied (baseline insecure policy)
 102.0,imsi-0013,SESSION_RELEASE,BOTH,Detection event received; immediate session release applied (baseline insecure policy)
+999.0,imsi-live-test,LOG_ONLY,RULE,live smoke test
+100.0,demo-supi,LOG_ONLY,RULE,Tier 1 hard rule triggered
+100.0,demo-supi,LOG_ONLY,RULE,Tier 1 hard rule triggered
+100.0,demo-supi,LOG_ONLY,RULE,Tier 1 hard rule triggered
+1784886656.3280764,imsi-208950000000001,BLOCKED,WEB_APP,Blocked via web demo after failed/fake attempt
+1784886757.2462986,imsi-208950000000001,REAUTH_SUCCESS,WEB_APP,Re-auth successful; block cleared via web demo
+1784886781.2806373,imsi-208950000000001,BLOCKED,WEB_APP,Blocked via web demo after failed/fake attempt

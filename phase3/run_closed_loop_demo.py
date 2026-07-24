@@ -5,56 +5,65 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SECURITY_LAYER_DIR = REPO_ROOT / "Security Layer"
 
+sys.path.append(str(REPO_ROOT))
+sys.path.append(str(SECURITY_LAYER_DIR))
+
+from realtime_engine import SecurityLayerEngine
+from event_log import WindowEvent
 from phase3.closed_loop_controller import ClosedLoopController, DetectionEvent
 
 
 def main() -> None:
-    controller = ClosedLoopController()
+    controller = ClosedLoopController(history_csv_path=Path(__file__).resolve().parent / "closed_loop_demo_history.csv")
+    engine = SecurityLayerEngine()
 
-    events = [
-        DetectionEvent(
-            timestamp=100.0,
-            supi="imsi-0009",
-            detection_source="RULE",
-            anomaly_score=0.31,
-            rule_triggered=True,
-            if_triggered=False,
-        ),
-        DetectionEvent(
-            timestamp=101.0,
-            supi="imsi-0010",
-            detection_source="IF",
-            anomaly_score=0.49,
-            rule_triggered=False,
-            if_triggered=True,
-        ),
-        DetectionEvent(
-            timestamp=102.0,
-            supi="imsi-0013",
-            detection_source="BOTH",
-            anomaly_score=0.78,
-            rule_triggered=True,
-            if_triggered=True,
-        ),
-    ]
+    print("=== Detection demo ===")
+    flagged_event = WindowEvent(
+        supi="demo-supi",
+        origin="cellA",
+        window_index=0,
+        attempts=100,
+        failures=30,
+        timestamp=100.0,
+    )
+    result = engine.process_event(flagged_event, now=flagged_event.timestamp)
+    print(f"Detection -> candidate={result['candidate']} reason={result['tier1']['reason']}")
 
-    print("Detection received")
-    print("↓")
-    for event in events:
-        decision = controller.process_detection(event)
-        print(f"Enforcement decision -> supi={decision.supi} action={decision.action.value}")
+    if result.get("candidate"):
+        decision = controller.process_detection(
+            DetectionEvent(
+                timestamp=flagged_event.timestamp,
+                supi=flagged_event.supi,
+                detection_source="RULE",
+                anomaly_score=flagged_event.raw_ratio,
+                rule_triggered=True,
+                if_triggered=False,
+                reason="Tier 1 hard rule triggered",
+            )
+        )
+        print(f"Closed-loop decision -> {decision.action.value} for {decision.supi}")
 
-    print("↓")
-    print("History")
+    blocked_id = "demo-supi"
+    status_before = engine.is_currently_blocked(blocked_id, now=101.0)
+    print(f"Blocked before reauth -> {status_before}")
+
+    print("=== Step-up reauth demo ===")
+    reauth_ok = engine.attempt_reauth(
+        blocked_id,
+        claimed_secret=b"correct-secret",
+        real_secret=b"correct-secret",
+        now=101.0,
+    )
+    print(f"Reauth result -> {reauth_ok}")
+    status_after = engine.is_currently_blocked(blocked_id, now=102.0)
+    print(f"Blocked after successful reauth -> {status_after}")
+
+    print("=== History ===")
     for decision in controller.get_history():
         print(f"- {decision.supi}: {decision.action.value} -> {decision.reason}")
-
-    output_path = Path(__file__).resolve().parent / "closed_loop_demo_history.csv"
-    controller.export_history_csv(output_path)
-    print("↓")
-    print(f"CSV export -> {output_path}")
 
 
 if __name__ == "__main__":
