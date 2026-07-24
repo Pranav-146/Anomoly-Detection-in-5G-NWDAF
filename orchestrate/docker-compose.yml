@@ -1,0 +1,166 @@
+networks:
+  mmtnet:
+    name: mmtnet
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+    driver_opts:
+      com.docker.network.bridge.name: mmtnet0
+      com.docker.network.driver.mtu: "1600"
+
+services:
+  sacore:
+    build:
+      context: ../core
+      dockerfile: tools/release/Dockerfile
+      network: host
+    image: ${SACORE_IMAGE:-mmt-studio-core:dev}
+    container_name: sacore
+    profiles: ["core", "both"]
+    restart: unless-stopped
+    networks:
+      mmtnet:
+        ipv4_address: 172.30.0.10
+    ports:
+      - "5000:5000"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_NICE
+      - SYS_RESOURCE
+    volumes:
+      - sacore_data:/var/lib/sacore
+      - /dev/hugepages:/dev/hugepages
+      - /sys/bus/pci/devices:/sys/bus/pci/devices:ro
+      - /sys/kernel/mm/hugepages:/sys/kernel/mm/hugepages:ro
+      - /sys/devices/system/node:/sys/devices/system/node:ro
+      - /lib/modules:/lib/modules:ro
+    devices:
+      - /dev/vfio:/dev/vfio
+      - /dev/net/tun:/dev/net/tun
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    environment:
+      - SACORE_HUGEPAGE_COUNT=512
+      - SA_CORE_DB_FILE=/var/lib/sacore/sacore.db
+      - NWDAF_ML_SERVICE_URL=http://ml-service:8000/predict
+    sysctls:
+      net.sctp.rcvbuf_policy: "0"
+      net.sctp.sndbuf_policy: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tln | grep -q ':5000' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  satraffic:
+    build:
+      context: ../tester
+      dockerfile: build/Dockerfile
+      network: host
+    image: ${SATESTER_IMAGE:-mmt-studio-tester:dev}
+    container_name: satraffic
+    profiles: ["core", "both"]
+    restart: unless-stopped
+    network_mode: "service:sacore"
+    command:
+      - python3
+      - -m
+      - src.traffic.agent_main
+      - --bind
+      - 0.0.0.0
+      - --port
+      - "9100"
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      sacore:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':9100' && python3 -c 'import socket; s=socket.create_connection((\"127.0.0.1\",5000),2); s.close()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  satester:
+    build:
+      context: ../tester
+      dockerfile: build/Dockerfile
+      network: host
+    image: ${SATESTER_IMAGE:-mmt-studio-tester:dev}
+    container_name: satester
+    profiles: ["tester", "both"]
+    restart: unless-stopped
+    networks:
+      mmtnet:
+        ipv4_address: 172.30.0.20
+    ports:
+      - "5001:5001"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - satester_data:/app/data
+      - satester_config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AMF_IP=${AMF_IP:-172.30.0.10}
+      - AMF_PORT=${AMF_PORT:-38412}
+      - UPF_IP=${UPF_IP:-172.30.0.10}
+      - GTPU_PORT=${GTPU_PORT:-2152}
+      - SACORE_BASE_URL=${SACORE_BASE_URL:-http://172.30.0.10:5000}
+    depends_on:
+      sacore:
+        condition: service_healthy
+        required: false
+      satraffic:
+        condition: service_healthy
+        required: false
+
+  ml-service:
+    build:
+      context: ..
+      dockerfile: ml_service/Dockerfile
+      network: host
+    image: ${ML_SERVICE_IMAGE:-ml-service:dev}
+    container_name: ml-service
+    profiles: ["core", "both"]
+    restart: unless-stopped
+    networks:
+      mmtnet:
+        ipv4_address: 172.30.0.30
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ML_SERVICE_HOST=0.0.0.0
+      - ML_SERVICE_PORT=8000
+      - ML_MODEL_PATH=/app/ml_service/model.joblib
+    working_dir: /app
+    command: ["python3", "-m", "uvicorn", "ml_service.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ../ml_service:/app/ml_service
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\").read()' >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  sacore_data:
+  satester_data:
+  satester_config:

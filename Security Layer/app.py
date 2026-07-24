@@ -169,4 +169,4 @@ def verify_auth():
     return jsonify({'success': False, 'message': '❌ Invalid HMAC token code. Block persists.'})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0",debug=True, port=5000)

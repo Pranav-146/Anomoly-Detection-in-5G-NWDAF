@@ -42,7 +42,7 @@ def test_imsi_level_split_is_stratified_and_grouped(tmp_path):
         writer.writeheader()
         writer.writerows(rows)
 
-    module.engineer_features(input_path, output_path, lookback=3)
+    module.engineer_features(input_path, output_path, lookback=3, test_size=0.5)
 
     with output_path.open("r", encoding="utf-8", newline="") as fh:
         written_rows = list(csv.DictReader(fh))

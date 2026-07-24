@@ -96,6 +96,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE="$SCRIPT_DIR/docker-compose.yml"
+# Local/demo runs do not need host-side privileged veth renaming or
+# wireshark watcher helpers. Set USE_HOST_PRIVILEGES=1 to opt back in.
+USE_HOST_PRIVILEGES="${USE_HOST_PRIVILEGES:-0}"
 
 # ── Output helpers ───────────────────────────────────────────────────
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
@@ -615,6 +618,10 @@ _ensure_sudo() {
     # Cache sudo creds upfront so background rename doesn't have to
     # prompt while compose logs are streaming. Returns 0 on success,
     # 1 if no sudo is available (no tty / wrong password / no sudo).
+    if [ "$USE_HOST_PRIVILEGES" != "1" ]; then
+        _warn "skipping sudo-dependent host helpers in local demo mode"
+        return 1
+    fi
     if sudo -n true 2>/dev/null; then
         return 0
     fi
@@ -627,6 +634,10 @@ _ensure_sudo() {
 }
 
 _rename_veths() {
+    if [ "$USE_HOST_PRIVILEGES" != "1" ]; then
+        _info "skipping host veth rename in local demo mode"
+        return 0
+    fi
     local svc script=""
     for svc in sacore satester; do
         script+="$(_rename_veth_script_for "$svc")"
@@ -1314,28 +1325,7 @@ case "$ACTION" in
             _start_test_wireshark_watcher || _warn "--wireshark watcher failed to start"
         fi
         _info "tailing logs — Ctrl-C detaches (containers keep running). Stop: ./stop_studio.sh"
-        # Run `compose logs -f` as a child (NOT `exec`) so we can trap
-        # SIGINT here and kill the logs process ourselves on first ^C.
-        # `docker compose logs -f` alone often eats the first SIGINT
-        # and only exits on the second — by killing it from the trap
-        # we get a single-keypress detach.
-        _logs_pid=""
-        _on_int() {
-            trap - INT TERM
-            echo
-            if [ -n "$_logs_pid" ]; then
-                kill -TERM "$_logs_pid" 2>/dev/null || true
-                # Give compose ~1s to exit cleanly, then SIGKILL.
-                ( sleep 1; kill -KILL "$_logs_pid" 2>/dev/null || true ) &
-                wait "$_logs_pid" 2>/dev/null || true
-            fi
-            _info "detached (containers keep running). Stop: ./stop_studio.sh"
-            exit 0
-        }
-        trap _on_int INT TERM
-        "${DC[@]}" logs -f &
-        _logs_pid=$!
-        wait "$_logs_pid"
+        exec "${DC[@]}" logs -f
         ;;
     *)
         _error "unknown action: $ACTION"

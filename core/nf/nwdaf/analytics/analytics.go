@@ -398,6 +398,38 @@ func computeAbnormalBehaviour(dataPoints []DataPoint) AnalyticsResult {
 	}
 }
 
+func extractAttribution(dataPoints []DataPoint) (map[string]any, int) {
+	for i := len(dataPoints) - 1; i >= 0; i-- {
+		data := parseDataJSON(dataPoints[i])
+		if attribution, ok := data["attribution"].(map[string]any); ok && len(attribution) > 0 {
+			count := 0
+			if rows, ok := data["attribution_rows"]; ok {
+				switch v := rows.(type) {
+				case float64:
+					count = int(v)
+				case int:
+					count = v
+				case int64:
+					count = int(v)
+				}
+			} else {
+				count = len(attribution)
+			}
+			return attribution, count
+		}
+	}
+	return nil, 0
+}
+
+func includeAttribution(result AnalyticsResult, attribution map[string]any, count int) AnalyticsResult {
+	if attribution == nil || len(attribution) == 0 {
+		return result
+	}
+	result.Result["attribution"] = attribution
+	result.Result["attribution_rows"] = count
+	return result
+}
+
 func computeThreshold(dataPoints []DataPoint) AnalyticsResult {
 	var alerts []map[string]any
 
@@ -415,7 +447,9 @@ func computeThreshold(dataPoints []DataPoint) AnalyticsResult {
 		confidence = 0.7
 	}
 
-	return buildAbnormalResult(alerts, confidence)
+	result := buildAbnormalResult(alerts, confidence)
+	attribution, count := extractAttribution(dataPoints)
+	return includeAttribution(result, attribution, count)
 }
 
 func computeML(dataPoints []DataPoint) AnalyticsResult {
@@ -454,7 +488,9 @@ func computeML(dataPoints []DataPoint) AnalyticsResult {
 		})
 	}
 
-	return buildAbnormalResult(alerts, confidence)
+	result := buildAbnormalResult(alerts, confidence)
+	attribution, count := extractAttribution(dataPoints)
+	return includeAttribution(result, attribution, count)
 }
 
 func thresholdAlerts(result AnalyticsResult) []map[string]any {

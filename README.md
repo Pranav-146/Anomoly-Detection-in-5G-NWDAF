@@ -1,229 +1,169 @@
 <!-- Copyright (c) 2026 MakeMyTechnology. Licensed under AGPL-3.0-or-later. -->
 
-# MMT Studio — 5G Core + Tester + Orchestration
+# Anomaly Detection in 5G NWDAF
 
-Open-source 3GPP-aligned 5G System Architecture (SA) reference
-distribution from **MakeMyTechnology**. Ships three components,
-laid out as siblings under the repo root:
+This repository combines a 5G core reference implementation with an anomaly-detection pipeline for NWDAF-style analytics. The project demonstrates how abnormal behavior can be detected from authentication and traffic patterns, passed through a security layer, and turned into enforcement actions such as step-up authentication or blocking.
 
-| Directory       | What it is                                          |
-|-----------------|------------------------------------------------------|
-| [`core/`](core)               | 5G Core in Go — AMF, SMF, UPF, AUSF, UDM, UDR, PCF, CHF, NRF, NWDAF, IMS CSCF, eSIM SM-DP+, … |
-| [`tester/`](tester)           | Python + Robot tester — gNB simulator, UE pool, IMS UAC, Robot suites |
-| [`orchestrate/`](orchestrate) | Docker-Compose glue — `run_studio.sh` brings the full stack up |
+The main components are:
 
-Each component has its own `README.md` with the gritty detail. This
-top-level README is the entry point.
+- Core Go services under [core](core) for the 5G network functions and NWDAF analytics logic.
+- A webservice under [core/webservice](core/webservice) that exposes NWDAF analytics routes.
+- A Python ML service under [ml_service](ml_service) for model training and inference.
+- A security-layer demo under [Security Layer](Security%20Layer) that processes event windows and triggers responses.
+- Phase 3 demos under [phase3](phase3) that show the closed-loop behavior end to end.
 
-## Install
+## What this project does
 
-After bring-up (any platform), the studio is reachable on the host at:
+The project is designed to show the full anomaly-detection flow:
 
-| Service     | Web UI                  | Bridge IP    |
-|-------------|-------------------------|--------------|
-| `sacore`    | http://localhost:5000   | 172.30.0.10  |
-| `satester`  | http://localhost:5001   | 172.30.0.20  |
+1. Network data is ingested and analyzed by NWDAF.
+2. Analytics results are exposed through REST APIs.
+3. The security layer evaluates suspicious behavior.
+4. A closed-loop controller turns detections into actions.
 
-### Linux (bare metal, VirtualBox guest, or WSL2 Ubuntu)
+In practical terms, the system can detect abnormal authentication windows, suspicious traffic behavior, and other patterns that suggest a security threat.
 
-Tested on Ubuntu 22.04+ / Debian 12+ with Docker Engine 24+.
+## Repository layout
 
-```bash
-git clone https://github.com/Makemytechnology/mmt-studio-5g6g.git
-mmt-studio-5g6g/orchestrate/install.sh --role=both
-```
+- [core](core) — Go-based 5G core and NWDAF implementation.
+- [core/webservice](core/webservice) — HTTP API for NWDAF analytics and data export.
+- [ml_service](ml_service) — Python training/prediction service for anomaly detection models.
+- [Security Layer](Security%20Layer) — rule-based and ML-assisted security response logic.
+- [phase3](phase3) — demos for the closed-loop controller and end-to-end pipeline.
+- [orchestrate](orchestrate) — docker-compose and helper scripts for running the stack.
+- [tester](tester) — test tooling and feature engineering helpers.
 
-The installer self-elevates and asks for your sudo password when it
-needs root.
+## Requirements
 
-Pick `--role={both|core|tester}`; with `tester`, add
-`--core-host=10.0.0.42` to point at a remote core. VirtualBox guests
-need ≥ 4 GiB RAM and 4 vCPUs.
+Before running the project, make sure you have:
 
-### Windows 11 (or Windows 10 build 19041+, WSL2)
+- Python 3.10+ or 3.11+
+- Go 1.22+
+- Git
+- Optional: Docker if you want to run the full orchestrated stack
 
-From any cmd or PowerShell prompt (no need to "Run as Administrator" —
-the `.bat` self-elevates with a UAC prompt):
+## Quick start
 
-```cmd
-git clone https://github.com/Makemytechnology/mmt-studio-5g6g.git
-mmt-studio-5g6g\orchestrate\install_on_windows.bat
-```
-
-If Windows asks for a reboot after the WSL2 step, reboot and re-run.
-
-### Run / stop / status / logs
-
-After install, control the stack from the cloned `orchestrate/`
-directory. Same actions on both platforms.
-
-#### Linux
+### 1) Clone the repository
 
 ```bash
-cd mmt-studio-5g6g/orchestrate
-./run_studio.sh              # bring up (default)
-./run_studio.sh status       # ps + watcher status
-./run_studio.sh logs         # follow logs (Ctrl-C detaches)
-./run_studio.sh restart      # down + up
-./run_studio.sh down         # stop + remove containers + bridge
+git clone <your-repo-url>
+cd Anomoly-Detection-in-5G-NWDAF
 ```
 
-#### Windows
+### 2) Create a Python environment
 
-```cmd
-cd mmt-studio-5g6g\orchestrate
-run_studio.bat               # bring up + per-test Wireshark watcher
-run_studio.bat status        # compose ps + watcher status
-run_studio.bat logs          # follow logs (Ctrl-C detaches)
-run_studio.bat restart       # down + up
-run_studio.bat down          # stop stack + Wireshark watcher
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -r ml_service/requirements.txt
+./.venv/bin/pip install pytest fastapi httpx2 scikit-learn pandas joblib uvicorn
 ```
 
-Both platforms open Wireshark live on every test run by default --
-the same window stays open until the next test triggers a fresh
-capture. Pass `--no-wireshark` (Linux) or `-NoWireshark` (Windows)
-to opt out.
+### 3) Run the Python demo flow
 
-## Quick start (dev, from source)
+#### Closed-loop demo
 
-For development inside this monorepo: builds the images directly
-from your working tree, no release tarball involved.
+```bash
+./.venv/bin/python phase3/run_closed_loop_demo.py
+```
 
-### Linux
+This runs a small synthetic detection workflow and shows how detections become enforcement decisions.
 
-`run_studio.sh` is both the build-and-run command and the runtime
-controller — same flags as `install.sh` for role selection.
+#### End-to-end demo
+
+```bash
+./.venv/bin/python phase3/run_end_to_end_demo.py
+```
+
+This runs a richer demo with benign and attack-like activity and writes a CSV history file to [phase3/end_to_end_demo_history.csv](phase3/end_to_end_demo_history.csv).
+
+#### Security layer demo
+
+```bash
+cd "Security Layer"
+../.venv/bin/python realtime_engine.py
+```
+
+This demonstrates how the security engine processes event windows and raises candidate detections.
+
+### 4) Run the ML service training entry points
+
+```bash
+./.venv/bin/python -m ml_service.train --help
+```
+
+Or from the ML service folder:
+
+```bash
+cd ml_service
+../.venv/bin/python train.py --help
+```
+
+## Run the Go NWDAF and webservice modules
+
+### NWDAF tests
+
+```bash
+cd core/nf
+CGO_ENABLED=0 go test ./... -count=1
+```
+
+### Webservice tests
+
+```bash
+cd ../webservice
+CGO_ENABLED=0 go test ./... -count=1
+```
+
+## Full verification command
+
+You can verify the main Python and Go paths with this single command:
+
+```bash
+cd /home/prajwal/Anomoly-Detection-in-5G-NWDAF
+./.venv/bin/python -m pytest -q \
+  tests/test_ml_service.py \
+  phase3/test_closed_loop_controller.py \
+  phase3/test_detection_adapter.py \
+  tester/tests/test_engineer_nwdaf_features.py \
+  "Security Layer/test_adaptive_authentication_pipeline.py" \
+  "Security Layer/test_adaptive_authentication_policy_engine.py" \
+  "Security Layer/test_adaptive_hmac_authentication.py" \
+  "Security Layer/test_collaborative_risk_propagation.py" \
+  "Security Layer/test_contextual_risk_assessment.py" \
+  "Security Layer/test_trust_risk_repository.py" && \
+cd core/nf && CGO_ENABLED=0 go test ./... -count=1 && \
+cd ../webservice && CGO_ENABLED=0 go test ./... -count=1
+```
+
+Expected result:
+
+- Python tests: `53 passed`
+- Go tests: all relevant NWDAF and webservice packages report `ok`
+
+## Optional: run the full orchestrated stack
+
+If you want the full stack experience, use the orchestration scripts:
 
 ```bash
 cd orchestrate
-./run_studio.sh                  # full stack (both core + tester)
-./run_studio.sh --role=core      # core only  (sacore + satraffic)
-./run_studio.sh --role=tester    # tester only (point at a remote core)
-./run_studio.sh logs             # follow logs
-./run_studio.sh down             # stop + remove containers + bridge
-./run_studio.sh reset            # forceful cleanup
+./run_studio.sh --role=both
 ```
 
-### Windows
+Then open:
 
-`install_on_windows.bat` doubles as the dev rebuild — it rsyncs
-your Windows source tree into WSL, rebuilds the sacore + satester
-images, and brings the stack up. After the first run, use
-`run_studio.bat` for the up / down / restart cycle.
+- http://localhost:5000 for the core UI
+- http://localhost:5001 for the tester UI
 
-```cmd
-cd orchestrate
-install_on_windows.bat                       :: rebuild + restart from source
-install_on_windows.bat -Role tester ^
-    -CoreHost 10.0.0.42                       :: tester-only, remote core
-run_studio.bat logs                           :: follow logs
-run_studio.bat down                           :: stop stack + Wireshark watcher
-```
+## Notes
 
-For tester-only, point the gNB profile at the remote core's IP via
-the tester web UI (`AMF IP` / `UPF IP`), or set `AMF_IP` / `UPF_IP`
-in `orchestrate/.env` before bring-up.
+- The system is designed as a reference/demo implementation rather than a production-ready deployment.
+- The anomaly-detection flow is intentionally modular so you can experiment with thresholds, ML models, and closed-loop responses.
+- For a deeper understanding, start with:
+  - [phase3/run_closed_loop_demo.py](phase3/run_closed_loop_demo.py)
+  - [phase3/run_end_to_end_demo.py](phase3/run_end_to_end_demo.py)
+  - [Security Layer/realtime_engine.py](Security%20Layer/realtime_engine.py)
 
-### Hugepages prerequisite
+## License
 
-The UPF dataplane uses DPDK and requires at least 512 × 2 MiB
-hugepages (`vm.nr_hugepages ≥ 512`). Both installers allocate +
-persist them automatically on bare metal, VirtualBox, and WSL2.
-
-### Building each component separately
-
-| Component     | Build                                           |
-|---------------|--------------------------------------------------|
-| `core/`       | `cd core && go build ./...` (Go 1.22+). DPDK under `core/libs/dpdk-25.11/` uses its own meson/ninja convention. |
-| `tester/`     | `cd tester && python3 -m venv .venv && .venv/bin/pip install -r build/requirements.txt` |
-| `orchestrate/`| `cd orchestrate && ./run_studio.sh up` builds container images on first run |
-
-The Docker path is the easy button — `docker compose build` (or
-`run_studio.sh up`) compiles core + tester images without you
-needing Go or Python locally.
-
-## Architecture
-
-```
-                 ┌──────────────────────────────────────────┐
-                 │  orchestrate/  (docker-compose)          │
-                 │                                          │
-                 │   ┌─────────────┐    ┌──────────────┐   │
-                 │   │   sacore    │◄──►│  satraffic   │   │
-                 │   │ (5G Core)   │    │ (traffic     │   │
-                 │   │             │    │  agent       │   │
-                 │   │ from core/  │    │  slave —     │   │
-                 │   │             │    │  shares      │   │
-                 │   │             │    │  sacore      │   │
-                 │   │             │    │  netns)      │   │
-                 │   └──────▲──────┘    └──────────────┘   │
-                 │          │ NGAP/SCTP + N3/GTP-U          │
-                 │          │                              │
-                 │   ┌──────▼──────┐                       │
-                 │   │  satester   │                       │
-                 │   │ (gNB sim,   │                       │
-                 │   │  UE pool,   │                       │
-                 │   │  Robot      │                       │
-                 │   │  suites —   │                       │
-                 │   │  from       │                       │
-                 │   │  tester/)   │                       │
-                 │   └─────────────┘                       │
-                 └──────────────────────────────────────────┘
-```
-
-## Spec compliance
-
-Every meaningful procedure carries a `§`-cite to a 3GPP TS or IETF
-RFC, anchored to the local PDFs under `core/specs/3gpp/`, `core/specs/ietf/`,
-and `tester/specs/`. A `speccheck` tool verifies every cited section
-actually exists in the referenced document.
-
-Selected anchors covered:
-
-- **N1/N2/N3/N4** — TS 23.501, TS 23.502, TS 24.501, TS 29.281, TS 29.244
-- **NGAP** — TS 38.413
-- **Policy / Charging** — TS 23.503, TS 29.512, TS 32.290, TS 32.291
-- **IMS / SIP** — TS 23.228, TS 24.229, TS 26.114
-- **NWDAF** — TS 23.288, TS 29.520, TS 29.522
-- **eSIM** — GSMA SGP.22, ITU-T E.118, TS 31.102
-- **Multi-USIM** — TS 23.501 §5.34, TS 23.502 §4.2.6, TS 24.501 §9.11.3.91
-
-## Status
-
-This is **reference / research-grade** software. The Go core is
-exercised against the in-tree tester for ~545 test cases (313 Robot
-+ 232 Python OAM TCs). Suitable for:
-
-- Lab interop, conformance trials, and feature R&D.
-- Spec-aligned tutorials and university coursework.
-- Operators experimenting with new features before vendor adoption.
-
-Not currently certified for commercial production use — see the
-component READMEs for what's wired vs. stubbed.
-
-## Licence
-
-[GNU Affero General Public License v3.0 or later](LICENSE)
-(AGPL-3.0-or-later).
-
-If your use case is not compatible with AGPL-3.0 obligations — for
-example, embedding the core in a closed-source appliance or operating
-it as a managed service without publishing modifications — a separate
-commercial licence is available. Contact **info@makemytechnology.com**
-for terms.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). All commits must be DCO-signed
-(`git commit -s`).
-
-## Code of conduct
-
-See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Reports go to
-**info@makemytechnology.com**.
-
-## Reporting security issues
-
-Please do **not** open public issues for security vulnerabilities.
-Email **info@makemytechnology.com** with the details and we will
-respond privately.
+This project is licensed under the GNU Affero General Public License v3.0 or later.
